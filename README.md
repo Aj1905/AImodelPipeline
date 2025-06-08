@@ -1,0 +1,3 @@
+# csv_pretreatment
+
+csvファイルの前処理・特徴量設計までに汎用的に対応できるipynbファイルです
