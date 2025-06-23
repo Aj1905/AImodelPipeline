@@ -5,7 +5,6 @@
 """
 
 from pathlib import Path
-from typing import List
 
 from ..handlers.sqlite_handler import SQLiteHandler
 
@@ -116,7 +115,7 @@ def select_columns_interactively(db_path: Path, table_name: str) -> list[str]:
     column_types = [col[1] for col in columns_info]
 
     print("利用可能な列:")
-    for i, (name, type_name) in enumerate(zip(column_names, column_types), 1):
+    for i, (name, type_name) in enumerate(zip(column_names, column_types, strict=False), 1):
         print(f"  {i}. {name} ({type_name})")
 
     selected_indices = []
@@ -128,7 +127,7 @@ def select_columns_interactively(db_path: Path, table_name: str) -> list[str]:
 
             indices = [int(x.strip()) - 1 for x in choice.split(',')]
             valid_indices = [i for i in indices if 0 <= i < len(column_names)]
-            
+
             if valid_indices:
                 selected_indices.extend(valid_indices)
                 selected_names = [column_names[i] for i in valid_indices]
@@ -228,16 +227,16 @@ def get_table_info_summary(db_path: Path, table_name: str) -> dict:
         for col_info in columns_info:
             col_name = col_info[1]
             col_type = col_info[2]
-            
+
             try:
                 # NULL値の数を取得
                 null_query = f"SELECT COUNT(*) FROM {table_name} WHERE {col_name} IS NULL"
                 null_count = handler.fetch_one(null_query)[0]
-                
+
                 # ユニーク値の数を取得
                 unique_query = f"SELECT COUNT(DISTINCT {col_name}) FROM {table_name}"
                 unique_count = handler.fetch_one(unique_query)[0]
-                
+
                 columns_detail[col_name] = {
                     "type": col_type,
                     "null_count": null_count,
@@ -288,8 +287,8 @@ def validate_columns_exist(db_path: Path, table_name: str, column_names: list[st
     """
     columns_info = get_table_columns(db_path, table_name)
     existing_columns = [col[0] for col in columns_info]
-    
+
     missing_columns = [col for col in column_names if col not in existing_columns]
     all_exist = len(missing_columns) == 0
-    
-    return all_exist, missing_columns 
+
+    return all_exist, missing_columns

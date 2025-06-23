@@ -6,7 +6,6 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
 
 import polars as pl
 
@@ -79,4 +78,4 @@ class IModel(ABC):
         Returns:
             str: モデル名
         """
-        pass 
+        pass

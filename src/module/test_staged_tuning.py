@@ -11,7 +11,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.ml.module_3.hyperparameter_tuner import _get_continuation_config, _get_custom_stage_config
+from src.ml.module_3.hyperparameter_tuner import (
+    _get_continuation_config,
+    _get_custom_stage_config,
+)
 from src.ml.module_3.tuning_manager import TuningManager
 
 

@@ -131,4 +131,4 @@ class TargetManager:
     def get_target(self, target_name: str) -> pd.Series:
         """ターゲットを取得する(カラム名)"""
         # Implementation of get_target method
-        pass 
+        pass

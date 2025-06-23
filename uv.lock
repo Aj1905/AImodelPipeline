@@ -508,6 +508,11 @@ dev = [
     { name = "ruff" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "ruff" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "connectorx", specifier = ">=0.4.3" },
@@ -530,6 +535,9 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.32.0" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = ">=0.12.0" }]
 
 [[package]]
 name = "fqdn"

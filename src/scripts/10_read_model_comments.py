@@ -50,7 +50,11 @@ def load_and_display_model_info(model_path: Path):
         try:
             importance = model.get_feature_importance()
             print("\n🎯 特徴量重要度 (トップ10):")
-            sorted_importance = sorted(importance.items(), key=lambda x: x[1], reverse=True)
+            sorted_importance = sorted(
+                importance.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )
             for feature, imp in sorted_importance[:10]:
                 print(f"  {feature}: {imp:.4f}")
         except Exception as e:
@@ -65,7 +69,9 @@ def load_and_display_model_info(model_path: Path):
 
 def main():
     """メイン処理"""
-    parser = argparse.ArgumentParser(description="保存されたモデルのコメントと学習情報を読み取る")
+    parser = argparse.ArgumentParser(
+        description="保存されたモデルのコメントと学習情報を読み取る"
+    )
     parser.add_argument("model_path", type=str, help="読み取るモデルファイルのパス")
 
     args = parser.parse_args()

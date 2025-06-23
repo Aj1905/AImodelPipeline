@@ -6,18 +6,23 @@ LightGBMなどのツリーベースモデルに特化したパイプライン実
 
 import polars as pl
 
-from ..base import BasePipeline
-from ...models.base import BaseModel
 from ...evaluation.metrics.metrics import Metrics, evaluate_regression
 from ...evaluation.results.results import CrossValidationResult, TrainingResult
 from ...features.managers.feature_manager import FeatureManager
 from ...features.managers.target_manager import TargetManager
+from ...models.base import BaseModel
+from ..base import BasePipeline
 
 
 class TreeModelPipeline(BasePipeline):
     """ツリーベースモデル用の学習パイプライン。"""
 
-    def __init__(self, model: BaseModel, target_manager: TargetManager, feature_manager: FeatureManager):
+    def __init__(
+        self,
+        model: BaseModel,
+        target_manager: TargetManager,
+        feature_manager: FeatureManager
+    ):
         """TreeModelPipelineを初期化する。
 
         Args:
@@ -39,8 +44,10 @@ class TreeModelPipeline(BasePipeline):
         Args:
             test_size (float, optional): テストデータの割合. デフォルトは 0.2.
             random_state (int, optional): ランダムシード. デフォルトは 42.
-            time_series_split (bool, optional): 時系列分割を使用するかどうか. デフォルトは False.
-            time_column (str, optional): 時系列分割に使用する日付列名. time_series_split=Trueの場合必須.
+            time_series_split (bool, optional): 時系列分割を使用するかどうか.
+                デフォルトは False.
+            time_column (str, optional): 時系列分割に使用する日付列名.
+                time_series_split=Trueの場合必須.
 
         Returns:
             TrainingResult: 学習結果
@@ -52,7 +59,9 @@ class TreeModelPipeline(BasePipeline):
             ValueError: time_series_split=Trueでtime_columnが指定されていない場合
         """
         if not (0.0 < test_size < 1.0):
-            raise ValueError("test_sizeは0.0より大きく1.0より小さい値である必要があります")
+            raise ValueError(
+                "test_sizeは0.0より大きく1.0より小さい値である必要があります"
+            )
 
         # データ数をチェック
         total_data_count = len(self._target_manager)
@@ -63,14 +72,22 @@ class TreeModelPipeline(BasePipeline):
         n_test = int(total_data_count * test_size)
         n_train = total_data_count - n_test
         if n_train == 0:
-            raise ValueError("データが不十分です。test_sizeが大きすぎて訓練データが空になります。")
+            raise ValueError(
+                "データが不十分です。test_sizeが大きすぎて訓練データが空になります。"
+            )
 
         if time_series_split:
             if time_column is None:
-                raise ValueError("時系列分割を使用する場合、time_columnを指定する必要があります。")
-            x_train, x_test, y_train, y_test = self._time_series_train_test_split(test_size, time_column)
+                raise ValueError(
+                    "時系列分割を使用する場合、time_columnを指定する必要があります。"
+                )
+            x_train, x_test, y_train, y_test = self._time_series_train_test_split(
+                test_size, time_column
+            )
         else:
-            x_train, x_test, y_train, y_test = self._train_test_split(test_size, random_state)
+            x_train, x_test, y_train, y_test = self._train_test_split(
+                test_size, random_state
+            )
 
         x_train = x_train.drop(self._target_manager.get_target_name())
         x_test = x_test.drop(self._target_manager.get_target_name())
@@ -116,9 +133,13 @@ class TreeModelPipeline(BasePipeline):
             raise ValueError("クロスバリデーションの分割数は2以上である必要があります")
 
         if len(self._feature_manager) == 0:
-            raise ValueError("特徴量データが読み込まれていません。load_data()を先に呼び出してください。")
+            raise ValueError(
+                "特徴量データが読み込まれていません。load_data()を先に呼び出してください。"
+            )
         if len(self._target_manager) == 0:
-            raise ValueError("ターゲットデータが読み込まれていません。load_data()を先に呼び出してください。")
+            raise ValueError(
+                "ターゲットデータが読み込まれていません。load_data()を先に呼び出してください。"
+            )
 
         x = self._feature_manager.to_polars_dataframe(use_enabled_only=True)
         y = self._target_manager.to_polars_series()
@@ -132,11 +153,18 @@ class TreeModelPipeline(BasePipeline):
 
         for fold in range(cv_folds):
             start_idx = fold * fold_size
-            end_idx = start_idx + fold_size if fold < cv_folds - 1 else len(shuffled_data)
+            end_idx = (
+                start_idx + fold_size
+                if fold < cv_folds - 1
+                else len(shuffled_data)
+            )
 
             val_data = shuffled_data.slice(start_idx, end_idx - start_idx)
             train_data = (
-                pl.concat([shuffled_data.head(start_idx), shuffled_data.tail(len(shuffled_data) - end_idx)])
+                pl.concat([
+                    shuffled_data.head(start_idx),
+                    shuffled_data.tail(len(shuffled_data) - end_idx)
+                ])
                 if start_idx > 0 or end_idx < len(shuffled_data)
                 else pl.DataFrame()
             )
@@ -172,10 +200,22 @@ class TreeModelPipeline(BasePipeline):
             )
 
             std_metrics = Metrics(
-                mse=(sum((v - mean_metrics.mse) ** 2 for v in mse_values) / len(mse_values)) ** 0.5,
-                rmse=(sum((v - mean_metrics.rmse) ** 2 for v in rmse_values) / len(rmse_values)) ** 0.5,
-                mae=(sum((v - mean_metrics.mae) ** 2 for v in mae_values) / len(mae_values)) ** 0.5,
-                r2=(sum((v - mean_metrics.r2) ** 2 for v in r2_values) / len(r2_values)) ** 0.5,
+                mse=(
+                    sum((v - mean_metrics.mse) ** 2 for v in mse_values)
+                    / len(mse_values)
+                ) ** 0.5,
+                rmse=(
+                    sum((v - mean_metrics.rmse) ** 2 for v in rmse_values)
+                    / len(rmse_values)
+                ) ** 0.5,
+                mae=(
+                    sum((v - mean_metrics.mae) ** 2 for v in mae_values)
+                    / len(mae_values)
+                ) ** 0.5,
+                r2=(
+                    sum((v - mean_metrics.r2) ** 2 for v in r2_values)
+                    / len(r2_values)
+                ) ** 0.5,
             )
 
         return CrossValidationResult(
@@ -197,7 +237,8 @@ class TreeModelPipeline(BasePipeline):
             random_state (int, optional): ランダムシード. デフォルトは 42.
 
         Returns:
-            tuple[pl.DataFrame, pl.DataFrame, pl.Series, pl.Series]: 学習用特徴量、テスト用特徴量、学習用ターゲット、テスト用ターゲット
+            tuple[pl.DataFrame, pl.DataFrame, pl.Series, pl.Series]:
+                学習用特徴量、テスト用特徴量、学習用ターゲット、テスト用ターゲット
         """
         x = self._feature_manager.to_polars_dataframe(use_enabled_only=True)
         y = self._target_manager.to_polars_series()
@@ -226,17 +267,24 @@ class TreeModelPipeline(BasePipeline):
 
         Args:
             test_size (float, optional): テストデータの割合. デフォルトは 0.2.
-            time_column (str, optional): 時系列分割に使用する日付列名. デフォルトは "date".
+            time_column (str, optional): ソートに使用する時系列列名.
+                デフォルトは "date".
 
         Returns:
-            tuple[pl.DataFrame, pl.DataFrame, pl.Series, pl.Series]: 学習用特徴量、テスト用特徴量、学習用ターゲット、テスト用ターゲット
+            tuple[pl.DataFrame, pl.DataFrame, pl.Series, pl.Series]:
+                学習用特徴量、テスト用特徴量、学習用ターゲット、テスト用ターゲット
         """
         x = self._feature_manager.to_polars_dataframe(use_enabled_only=True)
         y = self._target_manager.to_polars_series()
         data = x.with_columns(y)
         target_column = self._target_manager.get_target_name()
 
-        # 時系列でソート
+        # 時系列列でソート (昇順)
+        if time_column not in data.columns:
+            raise ValueError(
+                f"指定された時系列列 '{time_column}' がデータに存在しません。"
+            )
+
         sorted_data = data.sort(time_column)
         split_idx = int(len(sorted_data) * (1 - test_size))
 
@@ -248,4 +296,4 @@ class TreeModelPipeline(BasePipeline):
         y_train = train_data[target_column]
         y_test = test_data[target_column]
 
-        return x_train, x_test, y_train, y_test 
+        return x_train, x_test, y_train, y_test

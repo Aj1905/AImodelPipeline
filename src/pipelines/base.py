@@ -9,10 +9,10 @@ from pathlib import Path
 
 import polars as pl
 
-from ..features import FeatureManager
-from ..models.base import BaseModel
 from ..evaluation.results import CrossValidationResult, TrainingResult
+from ..features import FeatureManager
 from ..features.managers.target_manager import TargetManager
+from ..models.base import BaseModel
 
 
 class BasePipeline(ABC):

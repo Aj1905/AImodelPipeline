@@ -17,7 +17,8 @@ class FeatureManager:
         """FeatureManagerを初期化する。
 
         Args:
-            initial_features (pl.DataFrame | None, optional): 初期特徴量DataFrame. デフォルトは None.
+            initial_features (pl.DataFrame | None, optional):
+                初期特徴量DataFrame. デフォルトは None.
         """
         self._features: pl.DataFrame | None = None
         self._feature_flags: dict[str, bool] = {}
@@ -110,7 +111,9 @@ class FeatureManager:
         if self._features is None:
             return pl.DataFrame()
 
-        enabled_columns = [col for col in self._features.columns if self._feature_flags.get(col, False)]
+        enabled_columns = [
+            col for col in self._features.columns if self._feature_flags.get(col, False)
+        ]
         if not enabled_columns:
             return pl.DataFrame()
 
@@ -153,7 +156,8 @@ class FeatureManager:
         """特徴量をPolars DataFrameとして取得する。
 
         Args:
-            use_enabled_only (bool, optional): 有効な特徴量のみを使用するかどうか. デフォルトは True.
+            use_enabled_only (bool, optional):
+                有効な特徴量のみを使用するかどうか. デフォルトは True.
 
         Returns:
             pl.DataFrame: 特徴量を含むDataFrame
@@ -171,12 +175,15 @@ class FeatureManager:
 
         return result
 
-    def update_features_from_dataframe(self, df: pl.DataFrame, feature_names: list[str] | None = None) -> None:
+    def update_features_from_dataframe(
+        self, df: pl.DataFrame, feature_names: list[str] | None = None
+    ) -> None:
         """DataFrameから特徴量を更新する。
 
         Args:
             df (pl.DataFrame): 特徴量を含むDataFrame
-            feature_names (list[str] | None, optional): 更新する特徴量名のリスト. Noneの場合はすべての列を使用.
+            feature_names (list[str] | None, optional):
+                更新する特徴量名のリスト. Noneの場合はすべての列を使用.
         """
         columns = feature_names if feature_names is not None else df.columns
 
@@ -241,8 +248,12 @@ class FeatureManager:
         if total_count == 0:
             return "🔧 FeatureManager: 特徴量なし"
 
-        enabled_features = [col for col in self._features.columns if self._feature_flags.get(col, False)]
-        disabled_features = [col for col in self._features.columns if not self._feature_flags.get(col, False)]
+        enabled_features = [
+            col for col in self._features.columns if self._feature_flags.get(col, False)
+        ]
+        disabled_features = [
+            col for col in self._features.columns if not self._feature_flags.get(col, False)
+        ]
 
         result = "🔧 FeatureManager:\n"
         result += f"  総特徴量数: {total_count}\n"

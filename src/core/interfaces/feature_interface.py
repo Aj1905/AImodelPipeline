@@ -5,7 +5,6 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Any
 
 import polars as pl
 
@@ -84,4 +83,4 @@ class IFeatureManager(ABC):
         Returns:
             int: 有効な特徴量の数
         """
-        pass 
+        pass

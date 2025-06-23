@@ -114,7 +114,10 @@ def export_tables_to_csv(db_path: Path, output_dir: Path, tables_to_export: list
                 print(f"  ✓ {table}: {len(rows)}行 -> {csv_path}")
                 total_exported += len(rows)
 
-            print(f"\n✅ {len(tables_to_export)}テーブル、合計{total_exported}行のエクスポートが完了しました")
+            print(
+                f"\n✅ {len(tables_to_export)}テーブル、合計{total_exported}行の"
+                f"エクスポートが完了しました"
+            )
             print(f"出力先: {output_dir}")
 
     except sqlite3.Error as e:
@@ -125,7 +128,9 @@ def export_tables_to_csv(db_path: Path, output_dir: Path, tables_to_export: list
 
 def main():
     """メイン関数"""
-    parser = argparse.ArgumentParser(description="SQLiteデータベースのテーブルをCSVにエクスポート")
+    parser = argparse.ArgumentParser(
+        description="SQLiteデータベースのテーブルをCSVにエクスポート"
+    )
     parser.add_argument(
         "--db-file",
         type=str,
@@ -139,7 +144,10 @@ def main():
         help="CSV出力ディレクトリ (デフォルト: sqlite_export)",
     )
     parser.add_argument(
-        "--tables", type=str, default="", help="エクスポートするテーブル名(カンマ区切り、未指定の場合は選択モード)"
+        "--tables",
+        type=str,
+        default="",
+        help="エクスポートするテーブル名(カンマ区切り、未指定の場合は選択モード)"
     )
     parser.add_argument(
         "--non-interactive",

@@ -304,4 +304,4 @@ class FeatureManager(IFeatureManager):
             return df.sort_values('importance', ascending=False)
         except Exception as e:
             print(f"特徴量重要度の取得に失敗しました: {e}")
-            return pd.DataFrame() 
+            return pd.DataFrame()

@@ -9,10 +9,6 @@ import polars as pl
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.models.lightgbm_model import LightGBMRegressor
-from src.features.managers.feature_manager import FeatureManager
-from src.features.managers.target_manager import TargetManager
-from src.pipelines.implementations.tree_pipeline import TreeModelPipeline
 from src.data.utils.data_loader import (
     load_data_from_sqlite_polars,
     validate_db_path,
@@ -22,6 +18,10 @@ from src.data.utils.interactive_selector import (
     interactive_setup,
     validate_table_exists,
 )
+from src.features.managers.feature_manager import FeatureManager
+from src.features.managers.target_manager import TargetManager
+from src.models.lightgbm_model import LightGBMRegressor
+from src.pipelines.implementations.tree_pipeline import TreeModelPipeline
 
 
 @dataclass
@@ -53,7 +53,9 @@ def _process_datetime_features(data: pl.DataFrame) -> pl.DataFrame:
         )
 
         # Day of week: 0=Monday, 1=Tuesday, ..., 6=Sunday
-        processed_data = processed_data.with_columns(pl.col("datetime").dt.weekday().alias("dow"))
+        processed_data = processed_data.with_columns(
+            pl.col("datetime").dt.weekday().alias("dow")
+        )
 
     return processed_data
 
@@ -77,7 +79,10 @@ def _process_time_features(data: pl.DataFrame) -> pl.DataFrame:
     # ランチタイム・ディナータイム
     if "time" in data.columns:
         processed_data = processed_data.with_columns(
-            pl.when(pl.col("time").is_in([11, 12, 13])).then(1).otherwise(0).alias("is_lunch")
+            pl.when(pl.col("time").is_in([11, 12, 13]))
+            .then(1)
+            .otherwise(0)
+            .alias("is_lunch")
         )
         processed_data = processed_data.with_columns(
             pl.when(pl.col("time") >= 18).then(1).otherwise(0).alias("is_dinner")
@@ -86,7 +91,9 @@ def _process_time_features(data: pl.DataFrame) -> pl.DataFrame:
     return processed_data
 
 
-def _convert_string_columns(data: pl.DataFrame, available_columns: list[str]) -> tuple[pl.DataFrame, list[str]]:
+def _convert_string_columns(
+    data: pl.DataFrame, available_columns: list[str]
+) -> tuple[pl.DataFrame, list[str]]:
     """文字列型の列を数値に変換する"""
     processed_data = data.clone()
     updated_columns = available_columns.copy()
@@ -140,16 +147,24 @@ def feature_engineering(
     processed_data = _process_time_features(processed_data)
 
     # 指定された特徴量列のみを選択
-    available_columns = [col for col in feature_columns if col in processed_data.columns]
+    available_columns = [
+        col for col in feature_columns if col in processed_data.columns
+    ]
 
     # 時系列分割が必要な場合はdate列を保持(datetime列に変換されても元のdate列を保持)
-    if keep_date_for_split and "date" in data.columns and "date" not in available_columns:
+    if (
+        keep_date_for_split
+        and "date" in data.columns
+        and "date" not in available_columns
+    ):
         available_columns.append("date")
 
     processed_data = processed_data.select(available_columns)
 
     # 文字列型の列を数値に変換
-    processed_data, available_columns = _convert_string_columns(processed_data, available_columns)
+    processed_data, available_columns = _convert_string_columns(
+        processed_data, available_columns
+    )
 
     # 欠損値の処理
     processed_data = _handle_missing_values(processed_data)
@@ -174,7 +189,7 @@ def parse_and_validate_args() -> Args:
         description="Interactive ML Model Training with SQLite and MLflow Integration",
         epilog="""
 Examples:
-  # 基本的な使用方法（MLflow有効）
+  # 基本的な使用方法(MLflow有効)
   python src/scripts/07_concise_draftmodel.py
 
   # MLflowを無効にする場合
@@ -269,7 +284,7 @@ Examples:
     args.experiment_name = args.experiment_name
     args.run_name = args.run_name
     args.mlflow_tracking_uri = args.mlflow_tracking_uri
-    
+
     # --no-mlflowオプションが指定された場合はMLflowを無効化
     if args.no_mlflow:
         args.use_mlflow = False
@@ -303,7 +318,9 @@ Examples:
             print(f"❌ 指定されたターゲット列 '{args.target_column}' が存在しません")
             sys.exit(1)
 
-        missing_columns = [col for col in args.feature_columns if col not in all_columns]
+        missing_columns = [
+            col for col in args.feature_columns if col not in all_columns
+        ]
         if missing_columns:
             print(f"❌ 以下の特徴量列が存在しません: {missing_columns}")
             sys.exit(1)
@@ -311,55 +328,48 @@ Examples:
     return args
 
 
-def train_model(args: Args, data: pl.DataFrame):
-    """モデルの学習を実行"""
+def setup_mlflow(args: Args, data: pl.DataFrame) -> None:
+    """MLflowの設定を行う"""
+    if not args.use_mlflow:
+        return
+
+    print("\n🔧 MLflow設定:")
+    print(f"  トラッキングURI: {args.mlflow_tracking_uri}")
+    print(f"  実験名: {args.experiment_name}")
+
     # MLflowの設定
-    if args.use_mlflow:
-        print(f"\n🔧 MLflow設定:")
-        print(f"  トラッキングURI: {args.mlflow_tracking_uri}")
-        print(f"  実験名: {args.experiment_name}")
-        
-        # MLflowの設定
-        mlflow.set_tracking_uri(args.mlflow_tracking_uri)
-        mlflow.set_experiment(args.experiment_name)
-        
-        # 実行名の設定
-        if not args.run_name:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            args.run_name = f"lightgbm_{args.table}_{timestamp}"
-        
-        print(f"  実行名: {args.run_name}")
-        
-        # MLflowの実行を開始
-        mlflow.start_run(run_name=args.run_name)
-        
-        # パラメータを記録
-        mlflow.log_param("table_name", args.table)
-        mlflow.log_param("target_column", args.target_column)
-        mlflow.log_param("feature_count", len(args.feature_columns))
-        mlflow.log_param("data_size", len(data))
-        mlflow.log_param("time_series_split", args.time_series_split)
-        if args.time_series_split:
-            mlflow.log_param("time_column", args.time_column)
-        mlflow.log_param("model_type", "LightGBM")
-        mlflow.log_param("num_boost_round", 200)
-        mlflow.log_param("early_stopping_rounds", 10)
-        mlflow.log_param("test_size", 0.1)
-        mlflow.log_param("random_state", 42)
+    mlflow.set_tracking_uri(args.mlflow_tracking_uri)
+    mlflow.set_experiment(args.experiment_name)
 
-    # ターゲットデータの準備
-    target_data = data[args.target_column]
-    target_manager = TargetManager(target_data=target_data)
+    # 実行名の設定
+    if not args.run_name:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        args.run_name = f"lightgbm_{args.table}_{timestamp}"
 
-    # 特徴量エンジニアリング
-    print("\n🔧 特徴量エンジニアリング実行中...")
-    engineered_data = feature_engineering(data, args.feature_columns, args.time_series_split)
-    feature_manager = FeatureManager(initial_features=engineered_data)
+    print(f"  実行名: {args.run_name}")
 
-    # 特徴量とターゲットの情報を表示
-    print(f"\n{feature_manager}")
-    print(f"\n{target_manager}")
+    # MLflowの実行を開始
+    mlflow.start_run(run_name=args.run_name)
 
+    # パラメータを記録
+    mlflow.log_param("table_name", args.table)
+    mlflow.log_param("target_column", args.target_column)
+    mlflow.log_param("feature_count", len(args.feature_columns))
+    mlflow.log_param("data_size", len(data))
+    mlflow.log_param("time_series_split", args.time_series_split)
+    if args.time_series_split:
+        mlflow.log_param("time_column", args.time_column)
+    mlflow.log_param("model_type", "LightGBM")
+    mlflow.log_param("num_boost_round", 200)
+    mlflow.log_param("early_stopping_rounds", 10)
+    mlflow.log_param("test_size", 0.1)
+    mlflow.log_param("random_state", 42)
+
+
+def setup_model_and_comments(
+    args: Args, data: pl.DataFrame
+) -> tuple[LightGBMRegressor, list[str]]:
+    """モデルの設定とコメントの追加を行う"""
     # LightGBMモデルを設定
     model = LightGBMRegressor(
         num_boost_round=200,
@@ -374,32 +384,21 @@ def train_model(args: Args, data: pl.DataFrame):
     model.add_comment(f"ターゲット列: {args.target_column}")
     model.add_comment(f"特徴量数: {len(args.feature_columns)}")
     model.add_comment(f"データサイズ: {len(data)} 行")
-    model.add_comment(f"分割方法: {'時系列分割' if args.time_series_split else 'ランダム分割'}")
+    split_method = "時系列分割" if args.time_series_split else "ランダム分割"
+    model.add_comment(f"分割方法: {split_method}")
     if args.time_series_split:
         model.add_comment(f"時系列列: {args.time_column}")
-    model.add_comment("特徴量エンジニアリング: 日時特徴量、時間特徴量、文字列変換、欠損値補完")
+    model.add_comment(
+        "特徴量エンジニアリング: 日時特徴量、時間特徴量、文字列変換、欠損値補完"
+    )
     model.add_comment("モデル: LightGBM (回帰)")
-    model.add_comment("ハイパーパラメータ: デフォルト設定 (num_boost_round=200, early_stopping_rounds=10)")
+    model.add_comment(
+        "ハイパーパラメータ: デフォルト設定 "
+        "(num_boost_round=200, early_stopping_rounds=10)"
+    )
 
     # カスタムコメントの入力
-    print("\n📝 カスタムコメントの入力")
-    print("=" * 40)
-    print("学習時の情報として保存する追加コメントを入力してください。")
-    print("（空行で入力を終了します）")
-
-    skip_comments = input("追加コメントをスキップしますか？ (y/N): ").strip().lower()
-    if skip_comments in ["y", "yes"]:
-        print("⚠️  追加コメント入力をスキップしました")
-        comments = []
-    else:
-        comments = []
-        comment_count = 1
-        while True:
-            comment = input(f"追加コメント {comment_count}: ").strip()
-            if not comment:
-                break
-            comments.append(comment)
-            comment_count += 1
+    comments = get_custom_comments()
 
     # 追加コメントをモデルに追加
     for comment in comments:
@@ -418,8 +417,93 @@ def train_model(args: Args, data: pl.DataFrame):
     for i, comment in enumerate(all_comments, 1):
         print(f"  {i}. {comment}")
 
+    return model, all_comments
+
+
+def get_custom_comments() -> list[str]:
+    """カスタムコメントを取得する"""
+    print("\n📝 カスタムコメントの入力")
+    print("=" * 40)
+    print("学習時の情報として保存する追加コメントを入力してください。")
+    print("(空行で入力を終了します)")
+
+    skip_comments = input("追加コメントをスキップしますか? (y/N): ").strip().lower()
+    if skip_comments in ["y", "yes"]:
+        print("⚠️  追加コメント入力をスキップしました")
+        return []
+
+    comments = []
+    comment_count = 1
+    while True:
+        comment = input(f"追加コメント {comment_count}: ").strip()
+        if not comment:
+            break
+        comments.append(comment)
+        comment_count += 1
+
+    return comments
+
+
+def log_mlflow_metrics(
+    args: Args, model: LightGBMRegressor, results, all_comments: list[str]
+) -> None:
+    """MLflowにメトリクスを記録する"""
+    if not args.use_mlflow:
+        return
+
+    print("\n📊 MLflowにメトリクスを記録中...")
+    # 結果からメトリクスを抽出
+    if hasattr(results, 'train_rmse'):
+        mlflow.log_metric("train_rmse", results.train_rmse)
+    if hasattr(results, 'test_rmse'):
+        mlflow.log_metric("test_rmse", results.test_rmse)
+    if hasattr(results, 'train_r2'):
+        mlflow.log_metric("train_r2", results.train_r2)
+    if hasattr(results, 'test_r2'):
+        mlflow.log_metric("test_r2", results.test_r2)
+    if hasattr(results, 'train_mae'):
+        mlflow.log_metric("train_mae", results.train_mae)
+    if hasattr(results, 'test_mae'):
+        mlflow.log_metric("test_mae", results.test_mae)
+
+    # 特徴量重要度を記録
+    importance = model.get_feature_importance()
+    sorted_importance = sorted(importance.items(), key=lambda x: x[1], reverse=True)
+    for _i, (feature, imp) in enumerate(sorted_importance[:10]):
+        mlflow.log_metric(f"feature_importance_{feature}", imp)
+
+    # コメントをタグとして記録
+    for i, comment in enumerate(all_comments):
+        mlflow.set_tag(f"comment_{i+1}", comment)
+
+
+def train_model(args: Args, data: pl.DataFrame):
+    """モデルの学習を実行"""
+    # MLflowの設定
+    setup_mlflow(args, data)
+
+    # ターゲットデータの準備
+    target_data = data[args.target_column]
+    target_manager = TargetManager(target_data=target_data)
+
+    # 特徴量エンジニアリング
+    print("\n🔧 特徴量エンジニアリング実行中...")
+    engineered_data = feature_engineering(
+        data, args.feature_columns, args.time_series_split
+    )
+    feature_manager = FeatureManager(initial_features=engineered_data)
+
+    # 特徴量とターゲットの情報を表示
+    print(f"\n{feature_manager}")
+    print(f"\n{target_manager}")
+
+    # モデルの設定とコメントの追加
+    model, all_comments = setup_model_and_comments(args, data)
+
     # パイプラインを構築
-    pipeline = TreeModelPipeline(model=model, feature_manager=feature_manager, target_manager=target_manager)
+    pipeline = TreeModelPipeline(
+        model=model, feature_manager=feature_manager, target_manager=target_manager
+    )
 
     # モデル学習
     print("\n🔄 モデル学習中...")
@@ -429,7 +513,10 @@ def train_model(args: Args, data: pl.DataFrame):
         print("  ランダム分割を使用")
 
     results = pipeline.train(
-        test_size=0.1, random_state=42, time_series_split=args.time_series_split, time_column=args.time_column
+        test_size=0.1,
+        random_state=42,
+        time_series_split=args.time_series_split,
+        time_column=args.time_column,
     )
 
     # 結果表示
@@ -437,31 +524,7 @@ def train_model(args: Args, data: pl.DataFrame):
     print(f"{results}")
 
     # MLflowにメトリクスを記録
-    if args.use_mlflow:
-        print("\n📊 MLflowにメトリクスを記録中...")
-        # 結果からメトリクスを抽出
-        if hasattr(results, 'train_rmse'):
-            mlflow.log_metric("train_rmse", results.train_rmse)
-        if hasattr(results, 'test_rmse'):
-            mlflow.log_metric("test_rmse", results.test_rmse)
-        if hasattr(results, 'train_r2'):
-            mlflow.log_metric("train_r2", results.train_r2)
-        if hasattr(results, 'test_r2'):
-            mlflow.log_metric("test_r2", results.test_r2)
-        if hasattr(results, 'train_mae'):
-            mlflow.log_metric("train_mae", results.train_mae)
-        if hasattr(results, 'test_mae'):
-            mlflow.log_metric("test_mae", results.test_mae)
-        
-        # 特徴量重要度を記録
-        importance = model.get_feature_importance()
-        sorted_importance = sorted(importance.items(), key=lambda x: x[1], reverse=True)
-        for i, (feature, imp) in enumerate(sorted_importance[:10]):
-            mlflow.log_metric(f"feature_importance_{feature}", imp)
-        
-        # コメントをタグとして記録
-        for i, comment in enumerate(all_comments):
-            mlflow.set_tag(f"comment_{i+1}", comment)
+    log_mlflow_metrics(args, model, results, all_comments)
 
     # 学習情報を表示
     print("\n📊 学習時の情報:")
@@ -477,6 +540,118 @@ def train_model(args: Args, data: pl.DataFrame):
     return pipeline
 
 
+def save_model_to_mlflow(args: Args, save_path: Path, pipeline) -> None:
+    """MLflowにモデルを保存する"""
+    if not args.use_mlflow:
+        return
+
+    print("\n📦 MLflowにモデルをアーティファクトとして保存中...")
+    mlflow.log_artifact(str(save_path), "model")
+
+    # 設定ファイルも保存
+    config_path = save_path.with_suffix(".json")
+    import json
+
+    config = {
+        "table_name": args.table,
+        "target_column": args.target_column,
+        "feature_columns": args.feature_columns,
+        "model_type": "LightGBM",
+        "save_timestamp": str(datetime.now()),
+        "comments": (
+            pipeline.get_model().get_comments()
+            if hasattr(pipeline.get_model(), "get_comments")
+            else []
+        ),
+        "training_info": (
+            pipeline.get_model().get_training_info()
+            if hasattr(pipeline.get_model(), "get_training_info")
+            else {}
+        ),
+    }
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+
+    mlflow.log_artifact(str(config_path), "config")
+    print(f"📋 設定情報をMLflowに保存しました: {config_path}")
+
+
+def save_config_file(args: Args, save_path: Path, model) -> None:
+    """設定ファイルを保存する"""
+    if args.use_mlflow:
+        return
+
+    config_path = save_path.with_suffix(".json")
+    import json
+
+    config = {
+        "table_name": args.table,
+        "target_column": args.target_column,
+        "feature_columns": args.feature_columns,
+        "model_type": "LightGBM",
+        "save_timestamp": str(datetime.now()),
+        "comments": (
+            model.get_comments() if hasattr(model, "get_comments") else []
+        ),
+        "training_info": (
+            model.get_training_info() if hasattr(model, "get_training_info") else {}
+        ),
+    }
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+    print(f"📋 設定情報を保存しました: {config_path}")
+
+
+def display_saved_info(model) -> None:
+    """保存された情報を表示する"""
+    # 保存された学習情報を確認
+    if hasattr(model, "get_training_info"):
+        training_info = model.get_training_info()
+        print("📊 保存された学習情報:")
+        print(f"  データサイズ: {training_info.get('data_size', 'N/A')}")
+        print(f"  特徴量数: {training_info.get('feature_count', 'N/A')}")
+        print(f"  学習日時: {training_info.get('training_timestamp', 'N/A')}")
+
+    if hasattr(model, "get_comments"):
+        comments = model.get_comments()
+        if comments:
+            print(f"📝 保存されたコメント ({len(comments)}個):")
+            # 自動コメントと手動コメントを区別して表示
+            auto_comments = []
+            manual_comments = []
+
+            for comment in comments:
+                if any(
+                    keyword in comment
+                    for keyword in [
+                        "データソース:",
+                        "ターゲット列:",
+                        "特徴量数:",
+                        "データサイズ:",
+                        "分割方法:",
+                        "時系列列:",
+                        "特徴量エンジニアリング:",
+                        "モデル:",
+                        "ハイパーパラメータ:",
+                    ]
+                ):
+                    auto_comments.append(comment)
+                else:
+                    manual_comments.append(comment)
+
+            if auto_comments:
+                print("  🔧 自動生成コメント:")
+                for i, comment in enumerate(auto_comments, 1):
+                    print(f"    {i}. {comment}")
+
+            if manual_comments:
+                print("  ✏️  手動入力コメント:")
+                for i, comment in enumerate(manual_comments, 1):
+                    print(f"    {i}. {comment}")
+        else:
+            print("📝 保存されたコメント: なし")
+
+
 def save_model(args: Args, pipeline):
     """モデルを保存"""
     if not args.no_save:
@@ -489,100 +664,20 @@ def save_model(args: Args, pipeline):
             print(f"\n💾 モデルを保存しました: {save_path}")
 
             # MLflowにモデルをアーティファクトとして保存
-            if args.use_mlflow:
-                print("\n📦 MLflowにモデルをアーティファクトとして保存中...")
-                mlflow.log_artifact(str(save_path), "model")
-                
-                # 設定ファイルも保存
-                config_path = save_path.with_suffix(".json")
-                import json
-
-                config = {
-                    "table_name": args.table,
-                    "target_column": args.target_column,
-                    "feature_columns": args.feature_columns,
-                    "model_type": "LightGBM",
-                    "save_timestamp": str(datetime.now()),
-                    "comments": pipeline.get_model().get_comments() if hasattr(pipeline.get_model(), "get_comments") else [],
-                    "training_info": pipeline.get_model().get_training_info() if hasattr(pipeline.get_model(), "get_training_info") else {},
-                }
-                with open(config_path, "w", encoding="utf-8") as f:
-                    json.dump(config, f, ensure_ascii=False, indent=2)
-                
-                mlflow.log_artifact(str(config_path), "config")
-                print(f"📋 設定情報をMLflowに保存しました: {config_path}")
+            save_model_to_mlflow(args, save_path, pipeline)
 
             # 保存された学習情報を確認
             model = pipeline.get_model()
-            if hasattr(model, "get_training_info"):
-                training_info = model.get_training_info()
-                print("📊 保存された学習情報:")
-                print(f"  データサイズ: {training_info.get('data_size', 'N/A')}")
-                print(f"  特徴量数: {training_info.get('feature_count', 'N/A')}")
-                print(f"  学習日時: {training_info.get('training_timestamp', 'N/A')}")
+            display_saved_info(model)
 
-            if hasattr(model, "get_comments"):
-                comments = model.get_comments()
-                if comments:
-                    print(f"📝 保存されたコメント ({len(comments)}個):")
-                    # 自動コメントと手動コメントを区別して表示
-                    auto_comments = []
-                    manual_comments = []
-
-                    for comment in comments:
-                        if any(
-                            keyword in comment
-                            for keyword in [
-                                "データソース:",
-                                "ターゲット列:",
-                                "特徴量数:",
-                                "データサイズ:",
-                                "分割方法:",
-                                "時系列列:",
-                                "特徴量エンジニアリング:",
-                                "モデル:",
-                                "ハイパーパラメータ:",
-                            ]
-                        ):
-                            auto_comments.append(comment)
-                        else:
-                            manual_comments.append(comment)
-
-                    if auto_comments:
-                        print("  🔧 自動生成コメント:")
-                        for i, comment in enumerate(auto_comments, 1):
-                            print(f"    {i}. {comment}")
-
-                    if manual_comments:
-                        print("  ✏️  手動入力コメント:")
-                        for i, comment in enumerate(manual_comments, 1):
-                            print(f"    {i}. {comment}")
-                else:
-                    print("📝 保存されたコメント: なし")
-
-            # 設定情報も保存（MLflowを使用しない場合）
-            if not args.use_mlflow:
-                config_path = save_path.with_suffix(".json")
-                import json
-
-                config = {
-                    "table_name": args.table,
-                    "target_column": args.target_column,
-                    "feature_columns": args.feature_columns,
-                    "model_type": "LightGBM",
-                    "save_timestamp": str(datetime.now()),
-                    "comments": model.get_comments() if hasattr(model, "get_comments") else [],
-                    "training_info": model.get_training_info() if hasattr(model, "get_training_info") else {},
-                }
-                with open(config_path, "w", encoding="utf-8") as f:
-                    json.dump(config, f, ensure_ascii=False, indent=2)
-                print(f"📋 設定情報を保存しました: {config_path}")
+            # 設定情報も保存(MLflowを使用しない場合)
+            save_config_file(args, save_path, model)
 
         except Exception as e:
             print(f"❌ モデル保存エラー: {e}")
     else:
         print("\n⚠️  モデルは保存されませんでした (--no-save オプション)")
-    
+
     # MLflowの実行を終了
     if args.use_mlflow:
         mlflow.end_run()
@@ -617,7 +712,7 @@ def main():
 
     # MLflowの使用状況を表示
     if args.use_mlflow:
-        print(f"\n📊 MLflow情報:")
+        print("\n📊 MLflow情報:")
         print(f"  実験名: {args.experiment_name}")
         print(f"  実行名: {args.run_name}")
         print(f"  トラッキングURI: {args.mlflow_tracking_uri}")
@@ -625,7 +720,10 @@ def main():
         print("    python -m mlflow ui")
         print("    ブラウザで http://localhost:5000 にアクセス")
     else:
-        print(f"\n⚠️  MLflowは使用されませんでした (--no-mlflow オプションまたは --use-mlflow が指定されていません)")
+        print(
+            "\n⚠️  MLflowは使用されませんでした "
+            "(--no-mlflow オプションまたは --use-mlflow が指定されていません)"
+        )
 
     print("\n✅ 処理が完了しました!")
 

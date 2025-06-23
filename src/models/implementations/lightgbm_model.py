@@ -32,10 +32,13 @@ class LightGBMRegressor(BaseModel):
 
         Args:
             model_name (str | None, optional): モデルの名称. デフォルトは None.
-            params (dict[str, Any] | None, optional): LightGBMのパラメータ. デフォルトは None.
+            params (dict[str, Any] | None, optional): LightGBMのパラメータ.
+                デフォルトは None.
             num_boost_round (int, optional): ブースティング回数. デフォルトは 100.
-            early_stopping_rounds (int | None, optional): 早期停止のラウンド数. デフォルトは None.
-            verbose_eval (bool, optional): 学習過程を表示するかどうか. デフォルトは False.
+            early_stopping_rounds (int | None, optional): 早期停止のラウンド数.
+                デフォルトは None.
+            verbose_eval (bool, optional): 学習過程を表示するかどうか.
+                デフォルトは False.
         """
         super().__init__(model_name)
 
@@ -88,7 +91,9 @@ class LightGBMRegressor(BaseModel):
         for col in features.columns:
             dtype = features[col].dtype
             if dtype == pl.Utf8:
-                raise ValueError(f"文字列型の列 '{col}' が残っています。数値型に変換してください。")
+                raise ValueError(
+                    f"文字列型の列 '{col}' が残っています。数値型に変換してください。"
+                )
             print(f"  {col}: {dtype}")
 
         self._feature_names = features.columns
@@ -116,8 +121,16 @@ class LightGBMRegressor(BaseModel):
             "training_timestamp": datetime.now().isoformat(),
             "num_boost_round": self.num_boost_round,
             "early_stopping_rounds": self.early_stopping_rounds,
-            "best_iteration": self._model.best_iteration if hasattr(self._model, "best_iteration") else None,
-            "best_score": self._model.best_score if hasattr(self._model, "best_score") else None,
+            "best_iteration": (
+                self._model.best_iteration
+                if hasattr(self._model, "best_iteration")
+                else None
+            ),
+            "best_score": (
+                self._model.best_score
+                if hasattr(self._model, "best_score")
+                else None
+            ),
         }
 
         self._is_trained = True
@@ -136,14 +149,17 @@ class LightGBMRegressor(BaseModel):
             ValueError: 特徴量の列数が学習時と異なる場合
         """
         if not self._is_trained:
-            raise RuntimeError("モデルが学習されていません。先にtrainメソッドを実行してください")
+            raise RuntimeError(
+                "モデルが学習されていません。先にtrainメソッドを実行してください"
+            )
 
         if features.is_empty():
             raise ValueError("特徴量データが空です")
 
         if self._feature_names and len(features.columns) != len(self._feature_names):
             raise ValueError(
-                f"特徴量の列数が学習時と異なります。期待値: {len(self._feature_names)}, 実際: {len(features.columns)}"
+                f"特徴量の列数が学習時と異なります。期待値: {len(self._feature_names)}, "
+                f"実際: {len(features.columns)}"
             )
 
         x = features.to_numpy()
@@ -162,7 +178,9 @@ class LightGBMRegressor(BaseModel):
             RuntimeError: モデルが学習されていない場合
         """
         if not self._is_trained:
-            raise RuntimeError("モデルが学習されていません。先にtrainメソッドを実行してください")
+            raise RuntimeError(
+                "モデルが学習されていません。先にtrainメソッドを実行してください"
+            )
 
         file_path = Path(file_path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -207,7 +225,7 @@ class LightGBMRegressor(BaseModel):
             self._is_trained = True
 
         except Exception as e:
-            raise Exception(f"モデル読み込み中にエラーが発生しました: {e}")
+            raise Exception(f"モデル読み込み中にエラーが発生しました: {e}") from e
 
     def get_feature_importance(self) -> dict[str, float]:
         """特徴量重要度を取得する。
@@ -219,12 +237,17 @@ class LightGBMRegressor(BaseModel):
             RuntimeError: モデルが学習されていない場合
         """
         if not self._is_trained:
-            raise RuntimeError("モデルが学習されていません。先にtrainメソッドを実行してください")
+            raise RuntimeError(
+                "モデルが学習されていません。先にtrainメソッドを実行してください"
+            )
 
         importance = self._model.feature_importance(importance_type="gain")
-        feature_names = self._feature_names or [f"feature_{i}" for i in range(len(importance))]
+        feature_names = (
+            self._feature_names
+            or [f"feature_{i}" for i in range(len(importance))]
+        )
 
-        return dict(zip(feature_names, importance))
+        return dict(zip(feature_names, importance, strict=False))
 
     def get_params(self) -> dict[str, Any]:
         """モデルのパラメータを取得する。
@@ -252,9 +275,15 @@ class LightGBMRegressor(BaseModel):
         print(f"  データサイズ: {self._training_info.get('data_size', 'N/A')}")
         print(f"  特徴量数: {self._training_info.get('feature_count', 'N/A')}")
         print(f"  学習時刻: {self._training_info.get('training_timestamp', 'N/A')}")
-        print(f"  ブースティング回数: {self._training_info.get('num_boost_round', 'N/A')}")
-        print(f"  早期停止回数: {self._training_info.get('early_stopping_rounds', 'N/A')}")
-        print(f"  最適イテレーション: {self._training_info.get('best_iteration', 'N/A')}")
+        print(
+            f"  ブースティング回数: {self._training_info.get('num_boost_round', 'N/A')}"
+        )
+        print(
+            f"  早期停止回数: {self._training_info.get('early_stopping_rounds', 'N/A')}"
+        )
+        print(
+            f"  最適イテレーション: {self._training_info.get('best_iteration', 'N/A')}"
+        )
         print(f"  最適スコア: {self._training_info.get('best_score', 'N/A')}")
 
         if self._custom_comments:
@@ -276,4 +305,4 @@ class LightGBMRegressor(BaseModel):
         Returns:
             list[str]: カスタムコメントのリスト
         """
-        return self._custom_comments.copy() 
+        return self._custom_comments.copy()

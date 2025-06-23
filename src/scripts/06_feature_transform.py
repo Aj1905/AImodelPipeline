@@ -1,235 +1,319 @@
 #!/usr/bin/env python3
 """
-SQLiteファイルを読み込み、特徴量変換を行うスクリプト
+特徴量変換スクリプト
 
-このスクリプトは以下の機能を提供します:
-- 数値変換(標準化、正規化、対数変換など)
-- エンコーディング(ラベルエンコーディング、ワンホットエンコーディングなど)
-- 欠損値補充
+このスクリプトは、SQLiteデータベースのテーブルに対して
+特徴量変換を適用するためのツールです。
+
+使用方法:
+    python 06_feature_transform.py --table TABLE_NAME --columns COL1,COL2
+    python 06_feature_transform.py --help-transforms
 """
 
 import argparse
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # プロジェクトルートをパスに追加
-project_root = Path(__file__).resolve().parent.parent.parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-from src.ml.additional_module.db_utils import (
+from src.module.db_utils import (
     select_columns_interactively,
     select_table_interactively,
     validate_columns_exist,
     validate_db_path,
     validate_table_exists,
 )
-from src.ml.feature_transformer import FeatureTransformer, print_transformation_help
+from src.module.feature_transformer import FeatureTransformer, print_transformation_help
 
 # ============================================================================
-# メイン処理関数
+# 定数定義
+# ============================================================================
+
+DEFAULT_DB_PATH = "data/database.sqlite"
+
+# ============================================================================
+# 関数定義
 # ============================================================================
 
 
-def _parse_arguments():
+def parse_arguments():
     """コマンドライン引数を解析する"""
-    parser = argparse.ArgumentParser(description="SQLiteファイルの特徴量変換")
+    parser = argparse.ArgumentParser(
+        description="SQLiteテーブルの特徴量変換を実行"
+    )
     parser.add_argument(
         "--db-file",
         type=str,
-        default="data/database.sqlite",
-        help="SQLiteデータベースファイルパス (デフォルト: data/database.sqlite)",
+        default=DEFAULT_DB_PATH,
+        help="SQLiteデータベースファイルパス"
     )
-    parser.add_argument("--table", type=str, help="変換対象のテーブル名 (未指定の場合は対話的に選択)")
-    parser.add_argument("--columns", type=str, help="変換対象の列名 (カンマ区切り、未指定の場合は対話的に選択)")
-    parser.add_argument("--output-table", type=str, help="出力テーブル名 (未指定の場合は自動生成)")
     parser.add_argument(
-        "--missing-strategy",
+        "--table",
         type=str,
-        choices=["auto", "mean", "median", "mode", "drop"],
-        default="auto",
-        help="欠損値処理戦略 (デフォルト: auto)",
+        help="変換対象のテーブル名 (未指定の場合は対話的に選択)"
+    )
+    parser.add_argument(
+        "--columns",
+        type=str,
+        help="変換対象の列名 (カンマ区切り、未指定の場合は対話的に選択)"
+    )
+    parser.add_argument(
+        "--output-table",
+        type=str,
+        help="出力テーブル名 (未指定の場合は自動生成)"
     )
     parser.add_argument(
         "--numeric-transforms",
         type=str,
-        nargs="*",
-        choices=["standardize", "normalize", "robust_scale", "log", "sqrt"],
-        help="数値変換の種類",
+        help="数値変換オプション (カンマ区切り: standardize,normalize,robust_scale,log,sqrt)"
     )
     parser.add_argument(
         "--categorical-encodings",
         type=str,
-        nargs="*",
-        choices=["label", "onehot"],
-        help="カテゴリカルエンコーディングの種類",
+        help="カテゴリカルエンコーディング (カンマ区切り: label,onehot)"
     )
-    parser.add_argument("--non-interactive", action="store_true", help="非対話モードで実行")
-    parser.add_argument("--help-transforms", action="store_true", help="変換オプションのヘルプを表示")
-
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="非対話モードで実行"
+    )
+    parser.add_argument(
+        "--help-transforms",
+        action="store_true",
+        help="変換オプションのヘルプを表示"
+    )
     return parser.parse_args()
 
 
-def _select_table_and_columns(args, db_path):
-    """テーブルと列を選択する"""
-    # テーブル選択
-    if args.table:
-        table_name = args.table
-        if not validate_table_exists(db_path, table_name):
-            print(f"❌ エラー: テーブル '{table_name}' が存在しません")
-            return None, None
-    else:
-        table_name = select_table_interactively(db_path)
-        if not table_name:
-            print("テーブルが選択されませんでした")
-            return None, None
+def get_transformation_choices_interactively():
+    """対話的に変換オプションを選択する"""
+    print("\n" + "=" * 60)
+    print("🔧 特徴量変換オプション選択")
+    print("=" * 60)
 
-    print(f"📋 選択されたテーブル: {table_name}")
+    # 数値変換の選択
+    print("\n📊 数値変換オプション:")
+    print("1. 標準化 (standardize)")
+    print("2. 正規化 (normalize)")
+    print("3. ロバストスケーリング (robust_scale)")
+    print("4. 対数変換 (log)")
+    print("5. 平方根変換 (sqrt)")
+    print("6. 数値変換をスキップ")
 
-    # 列選択
-    if args.columns:
-        selected_columns = [col.strip() for col in args.columns.split(",")]
-        # 列の存在確認
-        columns_exist, missing_columns = validate_columns_exist(db_path, table_name, selected_columns)
-        if not columns_exist:
-            print(f"❌ エラー: 以下の列が見つかりません: {missing_columns}")
-            return None, None
-    else:
-        selected_columns = select_columns_interactively(db_path, table_name)
-        if not selected_columns:
-            print("列が選択されませんでした")
-            return None, None
+    choice = input("\n数値変換を選択してください (カンマ区切り、例: 1,3,4): ").strip()
 
-    print(f"📊 選択された列: {', '.join(selected_columns)}")
-    return table_name, selected_columns
+    numeric_transforms = []
+    if choice and choice != "6":
+        transform_map = {
+            "1": "standardize",
+            "2": "normalize",
+            "3": "robust_scale",
+            "4": "log",
+            "5": "sqrt"
+        }
+        numeric_transforms = [
+            transform_map.get(x.strip())
+            for x in choice.split(",")
+            if x.strip() in transform_map
+        ]
 
+    # カテゴリカルエンコーディングの選択
+    print("\n🏷️  カテゴリカルエンコーディング:")
+    print("1. ラベルエンコーディング (label)")
+    print("2. ワンホットエンコーディング (onehot)")
+    print("3. カテゴリカル変換をスキップ")
 
-def _select_transformations(args):
-    """変換オプションを選択する"""
-    if args.non_interactive:
-        numeric_transforms = args.numeric_transforms or []
-        categorical_encodings = args.categorical_encodings or []
-    else:
-        numeric_transforms = []
-        categorical_encodings = []
+    choice = input("\nカテゴリカルエンコーディングを選択してください (カンマ区切り): ").strip()
 
-        # 数値変換の選択
-        print("\n数値変換オプション:")
-        print("  1. 標準化 (standardize)")
-        print("  2. 正規化 (normalize)")
-        print("  3. ロバストスケーリング (robust_scale)")
-        print("  4. 対数変換 (log)")
-        print("  5. 平方根変換 (sqrt)")
-        print("  6. スキップ")
-
-        choice = input("数値変換を選択してください (カンマ区切り、例: 1,2,4): ").strip()
-        if choice and choice != "6":
-            transform_map = {"1": "standardize", "2": "normalize", "3": "robust_scale", "4": "log", "5": "sqrt"}
-            numeric_transforms = [transform_map.get(x.strip()) for x in choice.split(",") if x.strip() in transform_map]
-
-        # カテゴリカルエンコーディングの選択
-        print("\nカテゴリカルエンコーディングオプション:")
-        print("  1. ラベルエンコーディング (label)")
-        print("  2. ワンホットエンコーディング (onehot)")
-        print("  3. スキップ")
-
-        choice = input("カテゴリカルエンコーディングを選択してください (カンマ区切り、例: 1,2): ").strip()
-        if choice and choice != "3":
-            encoding_map = {"1": "label", "2": "onehot"}
-            categorical_encodings = [
-                encoding_map.get(x.strip()) for x in choice.split(",") if x.strip() in encoding_map
-            ]
+    categorical_encodings = []
+    if choice and choice != "3":
+        encoding_map = {"1": "label", "2": "onehot"}
+        categorical_encodings = [
+            encoding_map.get(x.strip())
+            for x in choice.split(",")
+            if x.strip() in encoding_map
+        ]
 
     return numeric_transforms, categorical_encodings
 
 
-def _apply_transformations(transformer, df, numeric_transforms, categorical_encodings, args):
+def _apply_transformations(
+    transformer,
+    df,
+    numeric_transforms,
+    categorical_encodings,
+    args
+):
     """変換を適用する"""
-    # 欠損値処理
-    print(f"\n🔧 欠損値処理中... (戦略: {args.missing_strategy})")
-    df = transformer.handle_missing_values(df, args.missing_strategy)
-    print("✓ 欠損値処理完了")
+    transformations_config = {}
 
-    # データ型の検出
-    data_types = transformer.detect_data_types(df)
-    print("\n📊 データ型検出結果:")
-    for col, dtype in data_types.items():
-        print(f"  {col}: {dtype}")
-
-    # 数値変換
+    # 数値変換の設定
     if numeric_transforms:
-        print("\n🔢 数値変換中...")
-        numeric_columns = [col for col, dtype in data_types.items() if dtype == "numeric"]
-        if numeric_columns:
-            df = transformer.apply_numeric_transformations(df, numeric_columns, numeric_transforms)
-        else:
-            print("数値列が見つかりませんでした")
+        transformations_config["numeric_transformations"] = numeric_transforms
 
-    # カテゴリカルエンコーディング
+    # カテゴリカル変換の設定
     if categorical_encodings:
+        transformations_config["categorical_transformations"] = categorical_encodings
+
+    # 変換の適用
+    if transformations_config:
+        # データ型の検出
+        data_types = transformer.detect_data_types(df)
+
+        print("\n🔢 数値変換中...")
+        numeric_columns = [
+            col for col, dtype in data_types.items()
+            if dtype == "numeric"
+        ]
+        if numeric_columns:
+            print(f"対象列: {', '.join(numeric_columns)}")
+
         print("\n🏷️  カテゴリカルエンコーディング中...")
-        categorical_columns = [col for col, dtype in data_types.items() if dtype == "categorical"]
+        categorical_columns = [
+            col for col, dtype in data_types.items()
+            if dtype == "categorical"
+        ]
         if categorical_columns:
-            df = transformer.apply_categorical_encodings(df, categorical_columns, categorical_encodings)
-        else:
-            print("カテゴリカル列が見つかりませんでした")
+            print(f"対象列: {', '.join(categorical_columns)}")
+
+        df = transformer.apply_transformations(df, transformations_config)
+        print("✅ 変換完了")
 
     return df
 
 
+def _setup_database_and_table(args):
+    """データベースとテーブルの設定を行う"""
+    # データベースパスの検証
+    db_path = Path(args.db_file).expanduser().resolve()
+    if not validate_db_path(db_path):
+        return None, None
+
+    # テーブル名の決定
+    table_name = args.table
+    if not table_name:
+        table_name = select_table_interactively(db_path)
+        if not table_name:
+            return None, None
+
+    # テーブル存在確認
+    if not validate_table_exists(db_path, table_name):
+        return None, None
+
+    return db_path, table_name
+
+
+def _setup_columns(args, db_path, table_name):
+    """列名の設定を行う"""
+    column_names = []
+    if args.columns:
+        column_names = [col.strip() for col in args.columns.split(",")]
+    else:
+        column_names = select_columns_interactively(db_path, table_name)
+        if not column_names:
+            return None
+
+    # 列存在確認
+    if not validate_columns_exist(db_path, table_name, column_names):
+        return None
+
+    return column_names
+
+
+def _setup_transformations(args):
+    """変換オプションの設定を行う"""
+    numeric_transforms = []
+    categorical_encodings = []
+
+    if args.non_interactive:
+        if args.numeric_transforms:
+            numeric_transforms = [t.strip() for t in args.numeric_transforms.split(",")]
+        if args.categorical_encodings:
+            categorical_encodings = [e.strip() for e in args.categorical_encodings.split(",")]
+    else:
+        numeric_transforms, categorical_encodings = get_transformation_choices_interactively()
+
+    return numeric_transforms, categorical_encodings
+
+
+def _process_data(db_path, table_name, column_names, numeric_transforms, categorical_encodings, args):
+    """データの読み込みと変換を行う"""
+    # データ読み込み
+    print(f"\n📊 データ読み込み中: {table_name}")
+    transformer = FeatureTransformer()
+    df = transformer.load_data_from_sqlite(db_path, table_name, column_names)
+    print(f"読み込み完了: {df.shape[0]}行 x {df.shape[1]}列")
+
+    # 変換の適用
+    df = _apply_transformations(
+        transformer,
+        df,
+        numeric_transforms,
+        categorical_encodings,
+        args
+    )
+
+    return df, transformer
+
+
+def _save_and_display_results(db_path, table_name, output_table, df, transformer, column_names):
+    """結果の保存と表示を行う"""
+    # データベースに保存
+    print(f"\n💾 変換結果を保存中: {output_table}")
+    transformer.save_to_sqlite(db_path, output_table, df)
+    print("✅ 保存完了")
+
+    # 結果表示
+    print("\n📋 変換結果:")
+    print(f"  元テーブル: {table_name}")
+    print(f"  出力テーブル: {output_table}")
+    print(f"  変換前: {len(column_names)}列")
+    print(f"  変換後: {df.shape[1]}列")
+    print(f"  行数: {df.shape[0]}行")
+
+    if transformer.transformations_applied:
+        print(f"  適用された変換: {', '.join(transformer.transformations_applied)}")
+
+
 def main():
     """メイン関数"""
-    args = _parse_arguments()
+    args = parse_arguments()
 
     # ヘルプ表示
     if args.help_transforms:
         print_transformation_help()
         return
 
-    # パス解決
-    db_path = Path(args.db_file).expanduser().resolve()
-
-    # データベース存在チェック
-    if not validate_db_path(db_path):
+    # データベースとテーブルの設定
+    db_path, table_name = _setup_database_and_table(args)
+    if db_path is None:
         return
 
-    print(f"🗃️  データベース: {db_path}")
-
-    # テーブルと列の選択
-    table_name, selected_columns = _select_table_and_columns(args, db_path)
-    if not table_name or not selected_columns:
+    # 列名の設定
+    column_names = _setup_columns(args, db_path, table_name)
+    if column_names is None:
         return
 
-    # 変換オプションの選択
-    numeric_transforms, categorical_encodings = _select_transformations(args)
+    # 変換オプションの設定
+    numeric_transforms, categorical_encodings = _setup_transformations(args)
 
-    # 特徴量変換の実行
-    transformer = FeatureTransformer()
+    # データの処理
+    df, transformer = _process_data(
+        db_path, table_name, column_names,
+        numeric_transforms, categorical_encodings, args
+    )
 
-    print("\n🔄 データ読み込み中...")
-    df = transformer.load_data_from_sqlite(db_path, table_name, selected_columns)
-    print(f"✓ データ読み込み完了: {len(df)}行, {len(df.columns)}列")
+    # 出力テーブル名の決定
+    output_table = args.output_table
+    if not output_table:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_table = f"{table_name}_transformed_{timestamp}"
 
-    # 変換の適用
-    df = _apply_transformations(transformer, df, numeric_transforms, categorical_encodings, args)
-
-    # 結果の保存
-    output_table = args.output_table or f"{table_name}_transformed"
-    print("\n💾 変換結果を保存中...")
-    transformer.save_transformed_data(df, db_path, output_table)
-
-    # 変換要約の表示
-    summary = transformer.get_transformation_summary()
-    print("\n📈 変換要約:")
-    print(f"  スケーラー: {len(summary['scalers'])}個")
-    print(f"  エンコーダー: {len(summary['encoders'])}個")
-    print(f"  補完器: {len(summary['imputers'])}個")
-    print(f"  総変換数: {summary['total_transformations']}個")
-
-    print("\n✅ 特徴量変換が完了しました!")
-    print(f"元テーブル: {table_name}")
-    print(f"出力テーブル: {output_table}")
-    print(f"変換前: {len(selected_columns)}列")
-    print(f"変換後: {len(df.columns)}列")
+    # 結果の保存と表示
+    _save_and_display_results(db_path, table_name, output_table, df, transformer, column_names)
 
 
 if __name__ == "__main__":
