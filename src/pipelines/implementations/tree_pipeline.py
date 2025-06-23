@@ -89,11 +89,17 @@ class TreeModelPipeline(BasePipeline):
                 test_size, random_state
             )
 
-        x_train = x_train.drop(self._target_manager.get_target_name())
-        x_test = x_test.drop(self._target_manager.get_target_name())
+        # ターゲット列が存在する場合のみ削除
+        target_column = self._target_manager.get_target_name()
+        if target_column in x_train.columns:
+            x_train = x_train.drop(target_column)
+        if target_column in x_test.columns:
+            x_test = x_test.drop(target_column)
         if time_series_split and time_column is not None:
-            x_train = x_train.drop(time_column)
-            x_test = x_test.drop(time_column)
+            if time_column in x_train.columns:
+                x_train = x_train.drop(time_column)
+            if time_column in x_test.columns:
+                x_test = x_test.drop(time_column)
 
         self._model.train(x_train, y_train)
 
@@ -172,8 +178,15 @@ class TreeModelPipeline(BasePipeline):
             if train_data.is_empty():
                 continue
 
-            x_train = train_data.drop(target_column)
-            x_val = val_data.drop(target_column)
+            # ターゲット列が存在する場合のみ削除
+            if target_column in train_data.columns:
+                x_train = train_data.drop(target_column)
+            else:
+                x_train = train_data
+            if target_column in val_data.columns:
+                x_val = val_data.drop(target_column)
+            else:
+                x_val = val_data
             y_train = train_data[target_column]
             y_val = val_data[target_column]
 
@@ -251,8 +264,15 @@ class TreeModelPipeline(BasePipeline):
         train_data = shuffled_data.head(split_idx)
         test_data = shuffled_data.tail(len(shuffled_data) - split_idx)
 
-        x_train = train_data.drop(target_column)
-        x_test = test_data.drop(target_column)
+        # ターゲット列が存在する場合のみ削除
+        if target_column in train_data.columns:
+            x_train = train_data.drop(target_column)
+        else:
+            x_train = train_data
+        if target_column in test_data.columns:
+            x_test = test_data.drop(target_column)
+        else:
+            x_test = test_data
         y_train = train_data[target_column]
         y_test = test_data[target_column]
 

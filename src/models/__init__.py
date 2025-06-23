@@ -5,6 +5,6 @@
 """
 
 from .base import BaseModel
-from .lightgbm_model import LightGBMRegressor
+from .implementations.lightgbm_model import LightGBMRegressor
 
 __all__ = ["BaseModel", "LightGBMRegressor"]

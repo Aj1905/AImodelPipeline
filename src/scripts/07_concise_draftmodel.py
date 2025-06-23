@@ -20,7 +20,7 @@ from src.data.utils.interactive_selector import (
 )
 from src.features.managers.feature_manager import FeatureManager
 from src.features.managers.target_manager import TargetManager
-from src.models.lightgbm_model import LightGBMRegressor
+from src.models.implementations.lightgbm_model import LightGBMRegressor
 from src.pipelines.implementations.tree_pipeline import TreeModelPipeline
 
 
@@ -41,146 +41,10 @@ class Args:
     mlflow_tracking_uri: str = "sqlite:///mlflow.db"
     no_mlflow: bool = False
 
-
-def _process_datetime_features(data: pl.DataFrame) -> pl.DataFrame:
-    """日時関連の特徴量を処理する"""
-    processed_data = data.clone()
-
-    # Convert date string to datetime if date column exists
-    if "date" in data.columns:
-        processed_data = processed_data.with_columns(
-            pl.col("date").str.to_datetime("%Y-%m-%d %H:%M:%S").alias("datetime")
-        )
-
-        # Day of week: 0=Monday, 1=Tuesday, ..., 6=Sunday
-        processed_data = processed_data.with_columns(
-            pl.col("datetime").dt.weekday().alias("dow")
-        )
-
-    return processed_data
-
-
-def _process_time_features(data: pl.DataFrame) -> pl.DataFrame:
-    """時間関連の特徴量を処理する"""
-    processed_data = data.clone()
-
-    # 給料日が 25 日以降なので、25 日以降を月末として特徴量にする
-    if "date_day" in data.columns:
-        processed_data = processed_data.with_columns(
-            pl.when(pl.col("date_day") >= 25).then(1).otherwise(0).alias("is_month_end")
-        )
-
-    # 週末
-    if "dow" in processed_data.columns:
-        processed_data = processed_data.with_columns(
-            pl.when(pl.col("dow") >= 4).then(1).otherwise(0).alias("is_weekend")
-        )
-
-    # ランチタイム・ディナータイム
-    if "time" in data.columns:
-        processed_data = processed_data.with_columns(
-            pl.when(pl.col("time").is_in([11, 12, 13]))
-            .then(1)
-            .otherwise(0)
-            .alias("is_lunch")
-        )
-        processed_data = processed_data.with_columns(
-            pl.when(pl.col("time") >= 18).then(1).otherwise(0).alias("is_dinner")
-        )
-
-    return processed_data
-
-
-def _convert_string_columns(
-    data: pl.DataFrame, available_columns: list[str]
-) -> tuple[pl.DataFrame, list[str]]:
-    """文字列型の列を数値に変換する"""
-    processed_data = data.clone()
-    updated_columns = available_columns.copy()
-
-    print("\n🔍 データ型の確認:")
-    for col in processed_data.columns:
-        dtype = processed_data[col].dtype
-        print(f"  {col}: {dtype}")
-
-        # 文字列型の場合は数値に変換を試行
-        if dtype == pl.Utf8:
-            print(f"    ⚠️  文字列型の列 '{col}' を数値に変換します")
-            try:
-                # 空文字列をNaNに変換してから数値に変換
-                processed_data = processed_data.with_columns(
-                    pl.col(col).str.replace("", "null").cast(pl.Float64, strict=False)
-                )
-                print("    ✅ 変換成功")
-            except Exception as e:
-                print(f"    ❌ 変換失敗: {e}")
-                # 変換できない場合は除外
-                if col in updated_columns:
-                    updated_columns.remove(col)
-                    print(f"    🗑️  列 '{col}' を除外します")
-
-    return processed_data, updated_columns
-
-
-def _handle_missing_values(data: pl.DataFrame) -> pl.DataFrame:
-    """欠損値を処理する"""
-    processed_data = data.clone()
-
-    print("\n🔧 欠損値の処理:")
-    for col in processed_data.columns:
-        null_count = processed_data[col].null_count()
-        if null_count > 0:
-            print(f"  {col}: {null_count}個の欠損値を0で補完")
-            processed_data = processed_data.with_columns(pl.col(col).fill_null(0))
-
-    return processed_data
-
-
-def feature_engineering(
-    data: pl.DataFrame, feature_columns: list[str], keep_date_for_split: bool = False
-) -> pl.DataFrame:
-    """特徴量エンジニアリングを実行"""
-    # 日時関連の特徴量を処理
-    processed_data = _process_datetime_features(data)
-
-    # 時間関連の特徴量を処理
-    processed_data = _process_time_features(processed_data)
-
-    # 指定された特徴量列のみを選択
-    available_columns = [
-        col for col in feature_columns if col in processed_data.columns
-    ]
-
-    # 時系列分割が必要な場合はdate列を保持(datetime列に変換されても元のdate列を保持)
-    if (
-        keep_date_for_split
-        and "date" in data.columns
-        and "date" not in available_columns
-    ):
-        available_columns.append("date")
-
-    processed_data = processed_data.select(available_columns)
-
-    # 文字列型の列を数値に変換
-    processed_data, available_columns = _convert_string_columns(
-        processed_data, available_columns
-    )
-
-    # 欠損値の処理
-    processed_data = _handle_missing_values(processed_data)
-
-    # 最終的な列選択
-    final_columns = [col for col in available_columns if col in processed_data.columns]
-    processed_data = processed_data.select(final_columns)
-
-    print("\n📊 特徴量の確認:")
-    print(processed_data.head())
-    print(f"使用する特徴量列: {final_columns}")
-    print("最終的なデータ型:")
-    for col in processed_data.columns:
-        print(f"  {col}: {processed_data[col].dtype}")
-
-    return processed_data
+    def __post_init__(self):
+        # feature_columnsがNoneの場合は空のリストに初期化
+        if self.feature_columns is None:
+            self.feature_columns = []
 
 
 def parse_and_validate_args() -> Args:
@@ -298,7 +162,15 @@ Examples:
         sys.exit(1)
 
     # 対話的設定(コマンドライン引数で指定されていない場合)
-    if not args.table or not args.target_column or not args.feature_columns:
+    # コマンドライン引数で指定されているかどうかを正確に判定
+    args_specified = (
+        args.table is not None and
+        args.target_column is not None and
+        len(args.feature_columns) > 0
+    )
+
+    if not args_specified:
+        print("🔧 コマンドライン引数が不完全なため、対話的設定を開始します...")
         try:
             table_name, target_column, feature_columns = interactive_setup(db_path)
             args.table = table_name
@@ -308,6 +180,7 @@ Examples:
             print(f"❌ 設定エラー: {e}")
             sys.exit(1)
     else:
+        print("✅ コマンドライン引数で指定された設定を使用します")
         # コマンドライン引数で指定された場合の検証
         if not validate_table_exists(db_path, args.table):
             print(f"❌ 指定されたテーブル '{args.table}' が存在しません")
@@ -388,9 +261,6 @@ def setup_model_and_comments(
     model.add_comment(f"分割方法: {split_method}")
     if args.time_series_split:
         model.add_comment(f"時系列列: {args.time_column}")
-    model.add_comment(
-        "特徴量エンジニアリング: 日時特徴量、時間特徴量、文字列変換、欠損値補完"
-    )
     model.add_comment("モデル: LightGBM (回帰)")
     model.add_comment(
         "ハイパーパラメータ: デフォルト設定 "
@@ -445,26 +315,36 @@ def get_custom_comments() -> list[str]:
 
 
 def log_mlflow_metrics(
-    args: Args, model: LightGBMRegressor, results, all_comments: list[str]
+    args: Args, model: LightGBMRegressor, results, all_comments: list[str], cv_results
 ) -> None:
     """MLflowにメトリクスを記録する"""
     if not args.use_mlflow:
         return
 
     print("\n📊 MLflowにメトリクスを記録中...")
-    # 結果からメトリクスを抽出
-    if hasattr(results, 'train_rmse'):
-        mlflow.log_metric("train_rmse", results.train_rmse)
-    if hasattr(results, 'test_rmse'):
-        mlflow.log_metric("test_rmse", results.test_rmse)
-    if hasattr(results, 'train_r2'):
-        mlflow.log_metric("train_r2", results.train_r2)
-    if hasattr(results, 'test_r2'):
-        mlflow.log_metric("test_r2", results.test_r2)
-    if hasattr(results, 'train_mae'):
-        mlflow.log_metric("train_mae", results.train_mae)
-    if hasattr(results, 'test_mae'):
-        mlflow.log_metric("test_mae", results.test_mae)
+
+    # TrainingResultオブジェクトから正しく評価指標を取得
+    if hasattr(results, 'train_metrics') and hasattr(results, 'validation_metrics'):
+        # 訓練データの評価指標
+        mlflow.log_metric("train_mse", results.train_metrics.mse)
+        mlflow.log_metric("train_rmse", results.train_metrics.rmse)
+        mlflow.log_metric("train_mae", results.train_metrics.mae)
+        mlflow.log_metric("train_r2", results.train_metrics.r2)
+
+        # 検証データの評価指標
+        mlflow.log_metric("validation_mse", results.validation_metrics.mse)
+        mlflow.log_metric("validation_rmse", results.validation_metrics.rmse)
+        mlflow.log_metric("validation_mae", results.validation_metrics.mae)
+        mlflow.log_metric("validation_r2", results.validation_metrics.r2)
+
+        # データサイズ情報
+        mlflow.log_metric("train_size", results.train_size)
+        mlflow.log_metric("test_size", results.test_size)
+        mlflow.log_metric("feature_count", results.feature_count)
+
+        print("✅ 評価指標をMLflowに記録しました")
+    else:
+        print("⚠️  TrainingResultオブジェクトから評価指標を取得できませんでした")
 
     # 特徴量重要度を記録
     importance = model.get_feature_importance()
@@ -476,6 +356,12 @@ def log_mlflow_metrics(
     for i, comment in enumerate(all_comments):
         mlflow.set_tag(f"comment_{i+1}", comment)
 
+    # クロスバリデーション結果を記録
+    mlflow.log_metric("cv_mse", cv_results.mean_metrics.mse)
+    mlflow.log_metric("cv_rmse", cv_results.mean_metrics.rmse)
+    mlflow.log_metric("cv_mae", cv_results.mean_metrics.mae)
+    mlflow.log_metric("cv_r2", cv_results.mean_metrics.r2)
+
 
 def train_model(args: Args, data: pl.DataFrame):
     """モデルの学習を実行"""
@@ -486,12 +372,9 @@ def train_model(args: Args, data: pl.DataFrame):
     target_data = data[args.target_column]
     target_manager = TargetManager(target_data=target_data)
 
-    # 特徴量エンジニアリング
-    print("\n🔧 特徴量エンジニアリング実行中...")
-    engineered_data = feature_engineering(
-        data, args.feature_columns, args.time_series_split
-    )
-    feature_manager = FeatureManager(initial_features=engineered_data)
+    # 特徴量データの準備(特徴量エンジニアリング済みのデータを使用)
+    feature_data = data.select(args.feature_columns)
+    feature_manager = FeatureManager(initial_features=feature_data)
 
     # 特徴量とターゲットの情報を表示
     print(f"\n{feature_manager}")
@@ -504,6 +387,12 @@ def train_model(args: Args, data: pl.DataFrame):
     pipeline = TreeModelPipeline(
         model=model, feature_manager=feature_manager, target_manager=target_manager
     )
+
+    # クロスバリデーション実行
+    print("\n🔄 クロスバリデーション実行中...")
+    cv_results = pipeline.cross_validate(cv_folds=5, random_state=42)
+    print("\n📊 クロスバリデーション結果:")
+    print(f"{cv_results}")
 
     # モデル学習
     print("\n🔄 モデル学習中...")
@@ -520,14 +409,11 @@ def train_model(args: Args, data: pl.DataFrame):
     )
 
     # 結果表示
-    print("\n📈 学習結果:")
-    print(f"{results}")
+    print(f"\n📈\n{results}")
 
     # MLflowにメトリクスを記録
-    log_mlflow_metrics(args, model, results, all_comments)
+    log_mlflow_metrics(args, model, results, all_comments, cv_results)
 
-    # 学習情報を表示
-    print("\n📊 学習時の情報:")
     model.print_training_info()
 
     # 特徴量重要度を表示
@@ -630,7 +516,6 @@ def display_saved_info(model) -> None:
                         "データサイズ:",
                         "分割方法:",
                         "時系列列:",
-                        "特徴量エンジニアリング:",
                         "モデル:",
                         "ハイパーパラメータ:",
                     ]
@@ -678,7 +563,6 @@ def save_model(args: Args, pipeline):
     else:
         print("\n⚠️  モデルは保存されませんでした (--no-save オプション)")
 
-    # MLflowの実行を終了
     if args.use_mlflow:
         mlflow.end_run()
         print("\n✅ MLflowの実行を終了しました")
@@ -715,10 +599,6 @@ def main():
         print("\n📊 MLflow情報:")
         print(f"  実験名: {args.experiment_name}")
         print(f"  実行名: {args.run_name}")
-        print(f"  トラッキングURI: {args.mlflow_tracking_uri}")
-        print("  MLflow UIで結果を確認できます:")
-        print("    python -m mlflow ui")
-        print("    ブラウザで http://localhost:5000 にアクセス")
     else:
         print(
             "\n⚠️  MLflowは使用されませんでした "

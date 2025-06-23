@@ -118,27 +118,25 @@ def select_columns_interactively(db_path: Path, table_name: str) -> list[str]:
     for i, (name, type_name) in enumerate(zip(column_names, column_types, strict=False), 1):
         print(f"  {i}. {name} ({type_name})")
 
-    selected_indices = []
     while True:
         try:
-            choice = input("\n選択する列の番号を入力してください (複数の場合はカンマ区切り、終了はq): ").strip()
-            if choice.lower() == 'q':
-                break
+            choice = input("\n選択する列の番号を入力してください (複数の場合はカンマ区切り): ").strip()
+            if not choice:
+                print("少なくとも1つの列を選択してください")
+                continue
 
             indices = [int(x.strip()) - 1 for x in choice.split(',')]
             valid_indices = [i for i in indices if 0 <= i < len(column_names)]
 
             if valid_indices:
-                selected_indices.extend(valid_indices)
                 selected_names = [column_names[i] for i in valid_indices]
-                print(f"選択された列: {selected_names}")
+                print(f"✅ 選択された列: {selected_names}")
+                return selected_names
             else:
                 print("有効な番号を入力してください")
 
         except ValueError:
             print("有効な数字を入力してください")
-
-    return [column_names[i] for i in selected_indices]
 
 
 def interactive_setup(db_path: Path) -> tuple[str, str, list[str]]:
@@ -175,30 +173,61 @@ def interactive_setup(db_path: Path) -> tuple[str, str, list[str]]:
                     f"    {col_name}: {col_info['type']} (NULL: {col_info['null_count']}, ユニーク: {col_info['unique_count']})"
                 )
 
-    # ターゲット列選択
-    print("\n🎯 ターゲット列を選択してください:")
-    target_column = select_columns_interactively(db_path, table_name)
-    if not target_column:
-        print("ターゲット列が選択されませんでした。処理を終了します。")
-        raise ValueError("ターゲット列が選択されませんでした")
-    target_column = target_column[0]  # 最初の選択をターゲットとする
-    print(f"✅ 選択されたターゲット列: {target_column}")
+    # ターゲット列と特徴量列を一度に選択
+    print("\n🎯 ターゲット列と特徴量列を選択してください:")
+    print("例: ターゲット列を7番、特徴量列を1,2,3,4,5,6番にする場合 → 7:1,2,3,4,5,6")
+    
+    columns_info = get_table_columns(db_path, table_name)
+    column_names = [col[0] for col in columns_info]
+    column_types = [col[1] for col in columns_info]
 
-    # 特徴量列選択
-    print("\n🔧 特徴量列を選択してください:")
-    feature_columns = select_columns_interactively(db_path, table_name)
-    if not feature_columns:
-        print("特徴量列が選択されませんでした。処理を終了します。")
-        raise ValueError("特徴量列が選択されませんでした")
+    print("\n利用可能な列:")
+    for i, (name, type_name) in enumerate(zip(column_names, column_types, strict=False), 1):
+        print(f"  {i}. {name} ({type_name})")
 
-    # ターゲット列を特徴量から除外
-    if target_column in feature_columns:
-        feature_columns.remove(target_column)
-        print(f"⚠️  ターゲット列 '{target_column}' を特徴量から除外しました")
+    while True:
+        try:
+            choice = input("\n選択してください (ターゲット列:特徴量列1,特徴量列2,...): ").strip()
+            if not choice or ':' not in choice:
+                print("正しい形式で入力してください (例: 7:1,2,3,4,5,6)")
+                continue
 
-    print(f"✅ 選択された特徴量列: {feature_columns}")
+            target_part, feature_part = choice.split(':', 1)
+            
+            # ターゲット列の処理
+            target_index = int(target_part.strip()) - 1
+            if not (0 <= target_index < len(column_names)):
+                print("有効なターゲット列の番号を入力してください")
+                continue
+            
+            target_column = column_names[target_index]
+            
+            # 特徴量列の処理
+            if not feature_part.strip():
+                print("少なくとも1つの特徴量列を選択してください")
+                continue
+                
+            feature_indices = [int(x.strip()) - 1 for x in feature_part.split(',')]
+            valid_feature_indices = [i for i in feature_indices if 0 <= i < len(column_names)]
+            
+            if not valid_feature_indices:
+                print("有効な特徴量列の番号を入力してください")
+                continue
+            
+            feature_columns = [column_names[i] for i in valid_feature_indices]
+            
+            # ターゲット列を特徴量から除外
+            if target_column in feature_columns:
+                feature_columns.remove(target_column)
+                print(f"⚠️  ターゲット列 '{target_column}' を特徴量から除外しました")
 
-    return table_name, target_column, feature_columns
+            print(f"✅ 選択されたターゲット列: {target_column}")
+            print(f"✅ 選択された特徴量列: {feature_columns}")
+            
+            return table_name, target_column, feature_columns
+
+        except ValueError:
+            print("有効な数字を入力してください")
 
 
 def get_table_info_summary(db_path: Path, table_name: str) -> dict:
