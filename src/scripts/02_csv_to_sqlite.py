@@ -22,7 +22,9 @@ def parse_args():
     Returns:
         argparse.Namespace: 解析された引数
     """
-    parser = argparse.ArgumentParser(description="CSVの生データをそのままSQLiteデータベースに保存します。")
+    parser = argparse.ArgumentParser(
+        description="CSVの生データをそのままSQLiteデータベースに保存します。"
+    )
     parser.add_argument("--csv-file", type=str, required=True, help="CSVファイルのパス")
     parser.add_argument(
         "--db-file",
@@ -30,13 +32,34 @@ def parse_args():
         default="data/database.sqlite",
         help="SQLiteデータベースファイルのパス (デフォルト: data/database.sqlite)",
     )
-    parser.add_argument("--table-name", type=str, required=True, help="保存先のテーブル名")
-    parser.add_argument("--delimiter", type=str, default=",", help="CSVの区切り文字(デフォルト: ,)")
-    parser.add_argument("--no-header", action="store_true", help="CSVファイルにヘッダーがない場合に指定")
     parser.add_argument(
-        "--encoding", type=str, default="utf-8", help="CSVファイルのエンコーディング (デフォルト: utf-8)"
+        "--table-name",
+        type=str,
+        required=True,
+        help="保存先のテーブル名"
     )
-    parser.add_argument("--headers", nargs="*", help="カラムヘッダー名を指定(ヘッダーがない場合のみ)")
+    parser.add_argument(
+        "--delimiter",
+        type=str,
+        default=",",
+        help="CSVの区切り文字(デフォルト: ,)"
+    )
+    parser.add_argument(
+        "--no-header",
+        action="store_true",
+        help="CSVファイルにヘッダーがない場合に指定"
+    )
+    parser.add_argument(
+        "--encoding",
+        type=str,
+        default="utf-8",
+        help="CSVファイルのエンコーディング (デフォルト: utf-8)"
+    )
+    parser.add_argument(
+        "--headers",
+        nargs="*",
+        help="カラムヘッダー名を指定(ヘッダーがない場合のみ)"
+    )
 
     return parser.parse_args()
 
@@ -109,7 +132,11 @@ def infer_column_type(column_values):
     return inferred_type
 
 
-def create_table_from_csv_data(sqlite_handler: SQLiteHandler, table_name: str, data) -> None:
+def create_table_from_csv_data(
+    sqlite_handler: SQLiteHandler,
+    table_name: str,
+    data
+) -> None:
     """CSVデータから自動的にテーブルを作成する。
 
     Args:
@@ -163,7 +190,8 @@ def process_data(data, args):
         # ヘッダー数とカラム数の一致チェック
         if provided_header_count != actual_column_count:
             print(
-                f"エラー: 指定されたヘッダー数 ({provided_header_count}) とCSVのカラム数 ({actual_column_count}) が一致しません"
+                f"エラー: 指定されたヘッダー数 ({provided_header_count}) と"
+                f"CSVのカラム数 ({actual_column_count}) が一致しません"
             )
             sys.exit(1)
 
@@ -199,75 +227,71 @@ def display_results(sqlite_handler, table_name, data_count, db_path):
     Args:
         sqlite_handler (SQLiteHandler): SQLiteハンドラー
         table_name (str): テーブル名
-        data_count (int): 保存したデータの行数
-        db_path (Path): データベースファイルのパス
+        data_count (int): 保存されたデータ数
+        db_path (str): データベースファイルパス
     """
-    print(f"完了: {data_count} 行のデータをテーブル '{table_name}' に保存しました")
-    print(f"データベースファイル: {db_path}")
+    print("\n✅ 処理完了!")
+    print(f"📊 保存されたデータ数: {data_count:,} 行")
+    print(f"🗄️  データベース: {db_path}")
 
-    # データの確認
-    print("\n保存されたデータの確認:")
-    sample_data = sqlite_handler.fetch_all(f"SELECT * FROM {table_name} LIMIT 5")
-    if sample_data:
-        print("最初の5行:")
-        for i, row in enumerate(sample_data, 1):
-            print(f"  {i}: {row}")
-
-    # テーブル情報を表示
-    table_info = sqlite_handler.get_table_info(table_name)
-    print(f"\nテーブル情報 ({table_name}):")
-    for column_info in table_info:
-        print(f"  {column_info[1]}: {column_info[2]}")
+    # テーブルの構造を表示
+    print("\n📋 テーブル構造:")
+    columns = sqlite_handler.get_table_columns(table_name)
+    for col_name, col_type in columns.items():
+        print(f"  {col_name}: {col_type}")
 
 
 def main():
-    """メイン実行関数。
-
-    CSVファイルの生データをそのままSQLiteデータベースに保存します。
-    """
+    """メイン処理"""
     args = parse_args()
+
+    # CSVファイルの存在確認
+    csv_path = Path(args.csv_file)
+    if not csv_path.exists():
+        print(f"❌ エラー: CSVファイル '{args.csv_file}' が見つかりません")
+        sys.exit(1)
+
+    # データベースファイルのディレクトリを作成
+    db_path = Path(args.db_file)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         # CSVファイルを読み込み
-        csv_reader = CSVReader(args.csv_file, encoding=args.encoding)
-        has_header = not args.no_header
+        print(f"📖 CSVファイルを読み込み中: {args.csv_file}")
+        csv_reader = CSVReader()
+        data = csv_reader.read_csv(
+            args.csv_file,
+            delimiter=args.delimiter,
+            encoding=args.encoding,
+            has_header=not args.no_header,
+        )
 
-        print(f"CSVファイルを読み込み中: {args.csv_file}")
-        data = csv_reader.read(delimiter=args.delimiter, has_header=has_header)
+        if not data:
+            print("❌ エラー: CSVファイルにデータがありません")
+            sys.exit(1)
 
-        # データの処理
-        data = process_data(data, args)
-        if data is None:
-            return
-
-        print(f"読み込み完了: {len(data)} 行のデータ")
-
-        # データベースファイルのパスを解決
-        db_path = Path(args.db_file)
-        if not db_path.is_absolute():
-            db_path = project_root / db_path
-
-        # データベースディレクトリが存在しない場合は作成
-        db_path.parent.mkdir(parents=True, exist_ok=True)
+        # データを処理
+        processed_data = process_data(data, args)
+        if processed_data is None:
+            sys.exit(1)
 
         # SQLiteハンドラーを初期化
-        sqlite_handler = SQLiteHandler(db_path)
+        sqlite_handler = SQLiteHandler(args.db_file)
 
-        # テーブルが存在しない場合は作成
-        if not sqlite_handler.table_exists(args.table_name):
-            create_table_from_csv_data(sqlite_handler, args.table_name, data)
-        else:
-            print(f"テーブル '{args.table_name}' は既に存在します")
+        # テーブルを作成
+        create_table_from_csv_data(sqlite_handler, args.table_name, processed_data)
 
         # データを挿入
-        print("データを挿入中...")
-        sqlite_handler.insert_many(args.table_name, data)
+        print("💾 データを挿入中...")
+        sqlite_handler.insert_data(args.table_name, processed_data)
 
-        # 結果の表示
-        display_results(sqlite_handler, args.table_name, len(data), db_path)
+        # 結果を表示
+        display_results(
+            sqlite_handler, args.table_name, len(processed_data), args.db_file
+        )
 
     except Exception as e:
-        print(f"エラー: {e}")
+        print(f"❌ エラー: {e}")
         sys.exit(1)
 
 

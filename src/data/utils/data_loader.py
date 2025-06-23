@@ -78,4 +78,4 @@ def validate_db_path(db_path: Path) -> bool:
     if not db_path.exists():
         print(f"❌ データベースファイルが見つかりません: {db_path}")
         return False
-    return True 
+    return True

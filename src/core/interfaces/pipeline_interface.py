@@ -78,4 +78,4 @@ class IPipeline(ABC):
         Returns:
             IModel: モデル
         """
-        pass 
+        pass

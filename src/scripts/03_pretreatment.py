@@ -16,7 +16,8 @@ def check_division_by_zero(operation: str, col2_num: pd.Series) -> None:
     """ゼロ除算の警告を表示する"""
     if operation == "/" and (col2_num == 0).any():
         zero_count = (col2_num == 0).sum()
-        print(f"警告: 列2に {zero_count} 個のゼロ値があります。ゼロ除算によりNaNが発生します。")
+        print(f"警告: 列2に {zero_count} 個のゼロ値があります。")
+        print("ゼロ除算によりNaNが発生します。")
 
 
 def validate_columns(df: pd.DataFrame, columns: list[str]) -> bool:
@@ -53,7 +54,9 @@ def _get_user_choice(prompt: str, options: list) -> int:
             print("数値を入力してください")
 
 
-def _get_column_choice(df: pd.DataFrame, prompt: str, allow_multiple: bool = False, allow_all: bool = False) -> list:
+def _get_column_choice(
+    df: pd.DataFrame, prompt: str, allow_multiple: bool = False, allow_all: bool = False
+) -> list:
     print(f"\n{prompt}")
     print("現在の列一覧:")
     for i, col in enumerate(df.columns, 1):
@@ -91,58 +94,65 @@ def _get_column_choice(df: pd.DataFrame, prompt: str, allow_multiple: bool = Fal
 
 def overview_data(df: pd.DataFrame) -> None:
     def _get_column_types(df):
-        numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
-        categorical_cols = [col for col in df.columns if not pd.api.types.is_numeric_dtype(df[col])]
+        numeric_cols = [
+            col for col in df.columns
+            if pd.api.types.is_numeric_dtype(df[col])
+        ]
+        categorical_cols = [
+            col for col in df.columns
+            if not pd.api.types.is_numeric_dtype(df[col])
+        ]
         missing_cols = df.columns[df.isna().any()].tolist()
-        return {"numeric": numeric_cols, "categorical": categorical_cols, "missing": missing_cols}
+        return {
+            "numeric": numeric_cols,
+            "categorical": categorical_cols,
+            "missing": missing_cols
+        }
 
     col_types = _get_column_types(df)
-    print("=" * 50)
-    print("データ基本情報")
-    print("=" * 50)
-    print(f"データ形状: {df.shape}")
-    print(f"数値列 ({len(col_types['numeric'])}): {col_types['numeric']}")
-    print(f"カテゴリ列 ({len(col_types['categorical'])}): {col_types['categorical']}")
-    print(f"欠損値のある列 ({len(col_types['missing'])}): {col_types['missing']}")
 
-    print("=== 各列の詳細 ===")
-    print(df.info())
-    print(df.describe(include="all"))
+    print("=== データ概要 ===")
+    print(f"行数: {len(df)}")
+    print(f"列数: {len(df.columns)}")
+    print(f"数値列: {len(col_types['numeric'])}")
+    print(f"カテゴリ列: {len(col_types['categorical'])}")
+    print(f"欠損値あり列: {len(col_types['missing'])}")
 
-    # ユーザーが選択した列を表示
-    print("\n=== 列のプレビュー ===")
-    while True:
-        # 列選択の入力受付
-        cols_input = input("表示する列をカンマ区切りで入力 (例: col1,col2)\n全て表示: all, 終了: exit\n入力: ").strip()
+    # 列選択の入力受付
+    cols_input = input(
+        "表示する列をカンマ区切りで入力 (例: col1,col2)\n"
+        "全て表示: all, 終了: exit\n"
+        "入力: "
+    ).strip()
 
-        if cols_input.lower() == "exit":
-            break
+    if cols_input.lower() == "exit":
+        return
 
-        if cols_input.lower() == "all":
-            print("\n全列を表示:")
-            print(df.head())
-            continue
+    if cols_input.lower() == "all":
+        print("\n全列を表示:")
+        print(df.head())
+        return
 
-        selected_cols = [col.strip() for col in cols_input.split(",") if col.strip()]
+    selected_cols = [col.strip() for col in cols_input.split(",") if col.strip()]
 
-        # 有効な列のフィルタリング
-        valid_cols = [col for col in selected_cols if col in df.columns]
-        invalid_cols = set(selected_cols) - set(valid_cols)
+    # 有効な列のフィルタリング
+    valid_cols = [col for col in selected_cols if col in df.columns]
+    invalid_cols = set(selected_cols) - set(valid_cols)
 
-        if invalid_cols:
-            print(f"次の列は存在しません: {', '.join(invalid_cols)}")
+    if invalid_cols:
+        print(f"次の列は存在しません: {', '.join(invalid_cols)}")
 
-        if not valid_cols:
-            print("有効な列が選択されていません")
-            continue
+    if not valid_cols:
+        print("有効な列が選択されていません")
+        return
 
-        print(f"\n選択列 ({', '.join(valid_cols)}) の先頭5行:")
-        print(df[valid_cols].head())
+    print(f"\n選択列 ({', '.join(valid_cols)}) の先頭5行:")
+    print(df[valid_cols].head())
 
-        # 続けて選択するか確認
-        cont = input("\n他の列を表示しますか? (y/n): ").strip().lower()
-        if cont != "y":
-            break
+    # 続けて選択するか確認
+    cont = input("\n他の列を表示しますか? (y/n): ").strip().lower()
+    if cont != "y":
+        return
 
 
 ### 2. 行削除
@@ -175,7 +185,9 @@ def _handle_column_deletion(df: pd.DataFrame, columns: list[str]) -> pd.DataFram
     return df
 
 
-def _handle_duplicate_deletion(df: pd.DataFrame, subset: list[str] | None) -> pd.DataFrame:
+def _handle_duplicate_deletion(
+    df: pd.DataFrame, subset: list[str] | None
+) -> pd.DataFrame:
     """重複行の削除を実行"""
     original_count = len(df)
     if subset:
@@ -252,7 +264,10 @@ def delete_columns(df: pd.DataFrame, columns: list | str | None = None) -> pd.Da
             except (ValueError, IndexError):
                 print(f"❌ 無効な入力です。1~{len(df.columns)}の範囲で入力してください")
 
-        cols_to_drop = selected_cols if is_delete_mode else [col for col in df.columns if col not in selected_cols]
+        cols_to_drop = (
+            selected_cols if is_delete_mode
+            else [col for col in df.columns if col not in selected_cols]
+        )
     else:
         # 文字列の場合はリストに変換
         if isinstance(columns, str):
@@ -268,7 +283,10 @@ def delete_columns(df: pd.DataFrame, columns: list | str | None = None) -> pd.Da
 
 
 def replace_text(
-    df: pd.DataFrame, column: str | None = None, to_replace: str | None = None, value: str | None = None
+    df: pd.DataFrame,
+    column: str | None = None,
+    to_replace: str | None = None,
+    value: str | None = None
 ) -> pd.DataFrame:
     if to_replace is None:
         to_replace = input("検索文字列を入力してください: ").strip()
@@ -289,7 +307,8 @@ def replace_text(
     # 対象列の設定
     if column:
         if column not in result.columns:
-            print(f"警告: 列 '{column}' が存在しません。利用可能列: {list(result.columns)}")
+            print(f"警告: 列 '{column}' が存在しません。")
+            print(f"利用可能列: {list(result.columns)}")
             return result
         target_cols = [column]
     else:
@@ -314,11 +333,17 @@ def replace_text(
 def _get_column_names(df, col1, col2):
     """列名を取得または選択する"""
     if col1 is None:
-        col1_choice = _get_user_choice("計算に使用する列1を選択してください:", list(df.columns))
+        col1_choice = _get_user_choice(
+            "計算に使用する列1を選択してください:",
+            list(df.columns)
+        )
         col1 = df.columns[col1_choice - 1]
 
     if col2 is None:
-        col2_choice = _get_user_choice("計算に使用する列2を選択してください:", list(df.columns))
+        col2_choice = _get_user_choice(
+            "計算に使用する列2を選択してください:",
+            list(df.columns)
+        )
         col2 = df.columns[col2_choice - 1]
 
     return col1, col2
@@ -346,7 +371,10 @@ def _get_new_column_name(df: pd.DataFrame, new_col: str | None = None) -> str:
             raise ValueError("新列名が入力されていません。")
 
     if new_col in df.columns:
-        overwrite_choice = _get_user_choice(f"列 '{new_col}' は既に存在します。", ["上書きする", "処理を中止"])
+        overwrite_choice = _get_user_choice(
+            f"列 '{new_col}' は既に存在します。",
+            ["上書きする", "処理を中止"]
+        )
         if overwrite_choice == 2:
             raise ValueError("処理を中止します。")
 
@@ -374,7 +402,12 @@ def _check_division_by_zero(operation, col2_num):
 
 def _perform_calculation(col1_num, col2_num, operation):
     """計算を実行する"""
-    operations = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, "*": lambda x, y: x * y, "/": lambda x, y: x / y}
+    operations = {
+        "+": lambda x, y: x + y,
+        "-": lambda x, y: x - y,
+        "*": lambda x, y: x * y,
+        "/": lambda x, y: x / y
+    }
     return operations[operation](col1_num, col2_num)
 
 
@@ -382,7 +415,8 @@ def _show_statistics(result, col1, col2, operation, new_col):
     """統計情報を表示する"""
     stats = result[new_col].describe()
     print(f"★ {col1} {operation} {col2} を '{new_col}' 列に追加しました。")
-    print(f"  count={stats['count']:.0f}, mean={stats['mean']:.2f}, min={stats['min']:.2f}, max={stats['max']:.2f}")
+    print(f"  count={stats['count']:.0f}, mean={stats['mean']:.2f}, ")
+    print(f"  min={stats['min']:.2f}, max={stats['max']:.2f}")
 
     nan_cnt = result[new_col].isna().sum()
     if nan_cnt > 0:
@@ -445,18 +479,28 @@ def _get_mapping_from_user(
         search_list = [s.strip() for s in search_input.split(",")]
 
     if replace_list is None:
-        replace_input = input("変換後の文字列をカンマ区切りで入力してください: ").strip()
+        replace_input = input(
+            "変換後の文字列をカンマ区切りで入力してください: "
+        ).strip()
         if not replace_input:
             raise ValueError("変換後リストが入力されていません。")
         replace_list = [s.strip() for s in replace_input.split(",")]
 
     if len(search_list) != len(replace_list):
-        raise ValueError(f"変換前({len(search_list)})と変換後({len(replace_list)})の要素数が一致しません")
+        raise ValueError(
+            f"変換前({len(search_list)})と変換後({len(replace_list)})の"
+            f"要素数が一致しません"
+        )
 
     return search_list, replace_list
 
 
-def _apply_mapping(df: pd.DataFrame, ref_col: str, mapping: dict[str, str], new_col: str) -> pd.DataFrame:
+def _apply_mapping(
+    df: pd.DataFrame,
+    ref_col: str,
+    mapping: dict[str, str],
+    new_col: str
+) -> pd.DataFrame:
     """マッピングを適用して新しい列を追加します"""
     result = df.copy()
     result[new_col] = result[ref_col].astype(str).map(mapping)
@@ -496,11 +540,17 @@ def generate_column_from_reference(
     try:
         # 参照列名の取得
         if ref_col is None:
-            ref_col_choice = _get_user_choice("参照する列を選択してください:", list(df.columns))
+            ref_col_choice = _get_user_choice(
+                "参照する列を選択してください:",
+                list(df.columns)
+            )
             ref_col = df.columns[ref_col_choice - 1]
 
         if ref_col not in df.columns:
-            raise ValueError(f"列 '{ref_col}' が存在しません。利用可能列: {list(df.columns)}")
+            raise ValueError(
+                f"列 '{ref_col}' が存在しません。"
+                f"利用可能列: {list(df.columns)}"
+            )
 
         # マッピング情報の取得
         search_list, replace_list = _get_mapping_from_user(search_list, replace_list)
@@ -537,7 +587,10 @@ def convert_date_format(
 
     # 列名入力
     if column_name is None:
-        col_choice = _get_user_choice("日付データの列を選択してください:", list(df.columns))
+        col_choice = _get_user_choice(
+            "日付データの列を選択してください:",
+            list(df.columns)
+        )
         column_name = df.columns[col_choice - 1]
 
     if column_name not in result.columns:
@@ -545,11 +598,16 @@ def convert_date_format(
         return df
 
     # フォーマット入力
-    if input_format is None:
-        input_format = input("元の日付形式パターンを入力してください (例: %Y/%m/%d): ").strip()
+    input(
+        "日付フォーマットを入力 (例: %Y-%m-%d、未入力で自動判定): "
+    ).strip() or None
 
     try:
-        result[column_name] = pd.to_datetime(result[column_name], format=input_format).dt.strftime("%Y-%m-%d")
+        result[column_name] = pd.to_datetime(
+            result[column_name],
+            format="%Y-%m-%d",
+            errors="coerce"
+        )
         print(f"✓ 日付変換完了: {column_name} 列 ({input_format} → %Y-%m-%d)")
     except Exception as e:
         print(f"✗ 変換エラー: {e}")
@@ -570,8 +628,11 @@ def add_weekday_column(
 
     # 日付列選択
     if date_column is None:
-        print(f"データ行数: {len(result)}, 列数: {len(result.columns)}")
-        col_choice = _get_user_choice("日付列を選択してください(%Y-%m-%d形式):", list(result.columns))
+        print(f"\nデータ行数: {len(result)}, 列数: {len(result.columns)}")
+        col_choice = _get_user_choice(
+            "日付列を選択してください(%Y-%m-%d形式):",
+            list(result.columns)
+        )
         date_column = result.columns[col_choice - 1]
 
     if date_column not in result.columns:
@@ -580,7 +641,9 @@ def add_weekday_column(
 
     # weekday_column_name入力
     if weekday_column_name is None or weekday_column_name == "曜日":
-        name = input("追加する曜日列の名前を入力してください (デフォルト: '曜日'): ").strip()
+        name = input(
+            "追加する曜日列の名前を入力してください (デフォルト: '曜日'): "
+        ).strip()
         if name:
             weekday_column_name = name
 
@@ -589,7 +652,10 @@ def add_weekday_column(
         pd.to_datetime(result[date_column].dropna())
     except Exception as e:
         print(f"⚠ 警告: '{date_column}' 列の値が日付として認識できません: {e}")
-        continue_choice = _get_user_choice("処理を続行しますか?", ["続行する", "中止する"])
+        continue_choice = _get_user_choice(
+            "処理を続行しますか?",
+            ["続行する", "中止する"]
+        )
         if continue_choice == 2:
             return df
 
@@ -606,7 +672,9 @@ def add_weekday_column(
 
 
 def add_holiday_flag_column(
-    df: pd.DataFrame, date_column: str | None = None, holiday_column_name: str = "祝日フラグ"
+    df: pd.DataFrame,
+    date_column: str | None = None,
+    holiday_column_name: str = "祝日フラグ"
 ) -> pd.DataFrame:
     result = df.copy()
 
@@ -620,7 +688,9 @@ def add_holiday_flag_column(
         return df
 
     if holiday_column_name == "祝日フラグ":
-        name = input("追加する祝日フラグ列の名前を入力してください (デフォルト: '祝日フラグ'): ").strip()
+        name = input(
+            "追加する祝日フラグ列の名前を入力してください (デフォルト: '祝日フラグ'): "
+        ).strip()
         if name:
             holiday_column_name = name
 
@@ -633,7 +703,9 @@ def add_holiday_flag_column(
             return df
 
     dates = pd.to_datetime(result[date_column])
-    result[holiday_column_name] = dates.apply(lambda d: bool(d and jpholiday.is_holiday(d)))
+    result[holiday_column_name] = dates.apply(
+        lambda d: bool(d and jpholiday.is_holiday(d))
+    )
 
     print(f"✓ 祝日フラグ列 '{holiday_column_name}' を追加しました。")
     preview = result[[date_column, holiday_column_name]].head()
@@ -644,14 +716,19 @@ def add_holiday_flag_column(
 
 
 def add_year_month_day(
-    df: pd.DataFrame, date_column: str | None = None, remove_original: bool | None = None
+    df: pd.DataFrame,
+    date_column: str | None = None,
+    remove_original: bool | None = None
 ) -> pd.DataFrame:
     result = df.copy()
 
     # 日付列選択
     if date_column is None:
         print(f"\nデータ行数: {len(result)}, 列数: {len(result.columns)}")
-        col_choice = _get_user_choice("日付列を選択してください(%Y-%m-%d形式):", list(result.columns))
+        col_choice = _get_user_choice(
+            "日付列を選択してください(%Y-%m-%d形式):",
+            list(result.columns)
+        )
         date_column = result.columns[col_choice - 1]
 
     if date_column not in result.columns:
@@ -660,7 +737,11 @@ def add_year_month_day(
 
     # 日付列をdatetime型に変換
     try:
-        result[date_column] = pd.to_datetime(result[date_column], format="%Y-%m-%d", errors="coerce")
+        result[date_column] = pd.to_datetime(
+            result[date_column],
+            format="%Y-%m-%d",
+            errors="coerce"
+        )
     except Exception as e:
         print(f"日付変換エラー: {e}")
         return df
@@ -685,7 +766,10 @@ def add_year_month_day(
 
     # 元の日付列を削除するかどうかをユーザーに選択させる
     if remove_original is None:
-        remove_choice = _get_user_choice(f"元の日付列 '{date_column}' を削除しますか?", ["削除する", "残す"])
+        remove_choice = _get_user_choice(
+            f"元の日付列 '{date_column}' を削除しますか?",
+            ["削除する", "残す"]
+        )
         remove_original = remove_choice == 1
 
     # 元の日付列を削除する場合
@@ -707,7 +791,10 @@ def add_year_month_day(
 
 def add_daily_sum_column(df: pd.DataFrame) -> pd.DataFrame:
     # 日付列の選択
-    date_col_choice = _get_user_choice("集計の基準となる日付列を選択してください:", list(df.columns))
+    date_col_choice = _get_user_choice(
+        "集計の基準となる日付列を選択してください:",
+        list(df.columns)
+    )
     date_col = df.columns[date_col_choice - 1]
 
     # 集計対象列の選択
@@ -779,7 +866,10 @@ def add_monthly_sum_column(df: pd.DataFrame) -> pd.DataFrame:
     同じ月の各行には同じ合計値が入ります。
     """
     # 日付列の選択
-    date_col_choice = _get_user_choice("集計の基準となる日付列を選択してください:", list(df.columns))
+    date_col_choice = _get_user_choice(
+        "集計の基準となる日付列を選択してください:",
+        list(df.columns)
+    )
     date_col = df.columns[date_col_choice - 1]
 
     # 集計対象列の選択
@@ -851,7 +941,12 @@ def add_monthly_sum_column(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
 
-def plot_counter_all(df: pd.DataFrame, figsize_per_plot=(6, 4), max_unique_values=20, ncols=3):
+def plot_counter_all(
+    df: pd.DataFrame,
+    figsize_per_plot=(6, 4),
+    max_unique_values=20,
+    ncols=3
+):
     """
     データフレームの全ての列についてcountplotまたはヒストグラムを表示する関数
     """
@@ -871,11 +966,15 @@ def plot_counter_all(df: pd.DataFrame, figsize_per_plot=(6, 4), max_unique_value
     for i, column in enumerate(columns):
         ax = axes[i]
         unique_count = df[column].nunique(dropna=True)
+        is_numeric = pd.api.types.is_numeric_dtype(df[column])
         try:
-            if unique_count > max_unique_values and pd.api.types.is_numeric_dtype(df[column]):
-                ax.hist(df[column].dropna(), bins=30, edgecolor="black")
+            if unique_count > max_unique_values and is_numeric:
+                ax.hist(
+                    df[column].dropna(),
+                    bins=30,
+                    edgecolor="black"
+                )
                 ax.set_title(f"{column}(Histogram - {unique_count} unique)")
-                ax.set_ylabel("Frequency")
             elif unique_count > max_unique_values:
                 top_values = df[column].value_counts().head(max_unique_values)
                 top_values.plot(kind="bar", ax=ax)
@@ -888,7 +987,9 @@ def plot_counter_all(df: pd.DataFrame, figsize_per_plot=(6, 4), max_unique_value
                 ax.set_ylabel("Count")
                 ax.tick_params(axis="x", rotation=45)
         except Exception as e:
-            ax.text(0.5, 0.5, f"Error:{e}", ha="center", va="center", transform=ax.transAxes)
+            ax.text(
+                0.5, 0.5, f"Error:{e}", ha="center", va="center", transform=ax.transAxes
+            )
             ax.set_title(f"{column} (Error)")
     # Hide unused subplots
     for j in range(n_cols, len(axes)):
@@ -900,7 +1001,8 @@ def plot_counter_all(df: pd.DataFrame, figsize_per_plot=(6, 4), max_unique_value
 def basic_statistics(df: pd.DataFrame, top_n: int = 10) -> None:
     """
     数値列とカテゴリ列の基本統計量と頻度ランキングを表示する関数。
-    - 数値列: count, mean, median, std, var, min, max, range, q1, q3, iqr, skewness, kurtosis
+    - 数値列: count, mean, median, std, var, min, max, range, q1, q3,
+      iqr, skewness, kurtosis
     - カテゴリ列: ユニーク数、上位top_nの頻度ランキング
     """
     # 数値列統計
@@ -928,12 +1030,20 @@ def basic_statistics(df: pd.DataFrame, top_n: int = 10) -> None:
             }
             print(f"--- {col} ---")
             for k, v in stats.items():
-                print(f"{k:>10}: {v:.4f}" if isinstance(v, int | float) else f"{k:>10}: {v}")
+                if isinstance(v, int | float):
+                    out = f"{k:>10}: {v:.4f}"
+                else:
+                    out = f"{k:>10}: {v}"
+                print(out)
     else:
         print("数値列がありません。")
 
     # カテゴリ列頻度
-    categorical_cols = [col for col in df.columns if not pd.api.types.is_numeric_dtype(df[col])]
+    categorical_cols = [
+        col
+        for col in df.columns
+        if not pd.api.types.is_numeric_dtype(df[col])
+    ]
     if categorical_cols:
         print("=== カテゴリ列の頻度ランキング ===")
         for col in categorical_cols:
@@ -985,9 +1095,15 @@ def save_to_database(df: pd.DataFrame, conn: sqlite3.Connection) -> None:
 
         # 既存テーブルの確認
         cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (table_name,)
+        )
         if cursor.fetchone():
-            overwrite = _get_user_choice(f"テーブル '{table_name}' は既に存在します。", ["上書きする", "中止する"])
+            overwrite = _get_user_choice(
+                f"テーブル '{table_name}' は既に存在します。",
+                ["上書きする", "中止する"]
+            )
             if overwrite == 2:
                 print("保存を中止します。")
                 return
@@ -1015,7 +1131,9 @@ def _get_type_conversion_function(type_choice: int) -> callable:
         return lambda x: x.astype(str)
     elif type_choice == 4:  # datetime
         # 日付フォーマットの入力
-        fmt = input("日付フォーマットを入力 (例: %Y-%m-%d、未入力で自動判定): ").strip() or None
+        fmt = input(
+            "日付フォーマットを入力 (例: %Y-%m-%d、未入力で自動判定): "
+        ).strip() or None
         return lambda x, fmt=fmt: pd.to_datetime(x, format=fmt, errors="coerce")
     elif type_choice == 5:  # category
         return lambda x: x.astype("category")
@@ -1023,7 +1141,11 @@ def _get_type_conversion_function(type_choice: int) -> callable:
         raise ValueError(f"無効な型選択: {type_choice}")
 
 
-def _apply_type_conversion(df: pd.DataFrame, col: str, converter: callable) -> tuple[pd.DataFrame, int]:
+def _apply_type_conversion(
+    df: pd.DataFrame,
+    col: str,
+    converter: callable
+) -> tuple[pd.DataFrame, int]:
     """型変換を適用し、エラー数を返す"""
     result = df.copy()
     original_nulls = result[col].isna().sum()
@@ -1114,7 +1236,9 @@ def _display_tables(tables: list[str], conn: sqlite3.Connection) -> None:
     print("\n利用可能なテーブル一覧:")
     for i, table in enumerate(tables, 1):
         # テーブル名をバッククォートで囲んでSQLインジェクション対策と特殊文字対応
-        count = pd.read_sql_query(f"SELECT COUNT(*) as count FROM `{table}`", conn)["count"][0]
+        count = pd.read_sql_query(
+            f"SELECT COUNT(*) as count FROM `{table}`", conn
+        )["count"][0]
         print(f"{i}. {table} (行数: {count})")
 
 
@@ -1125,14 +1249,22 @@ def _execute_function(func, df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     if func == plot_scatter:
-        x = df.columns[_get_user_choice("X軸の列を選択してください:", list(df.columns)) - 1]
-        y = df.columns[_get_user_choice("Y軸の列を選択してください:", list(df.columns)) - 1]
+        x = df.columns[
+            _get_user_choice("X軸の列を選択してください:", list(df.columns)) - 1
+        ]
+        y = df.columns[
+            _get_user_choice("Y軸の列を選択してください:", list(df.columns)) - 1
+        ]
         func(df, x, y)
         return df
 
     if func == plot_3d_histogram:
-        x = df.columns[_get_user_choice("X軸の列を選択してください:", list(df.columns)) - 1]
-        y = df.columns[_get_user_choice("Y軸の列を選択してください:", list(df.columns)) - 1]
+        x = df.columns[
+            _get_user_choice("X軸の列を選択してください:", list(df.columns)) - 1
+        ]
+        y = df.columns[
+            _get_user_choice("Y軸の列を選択してください:", list(df.columns)) - 1
+        ]
         bins = int(input("ビン数(デフォルト10): ") or 10)
         func(df, x, y, bins)
         return df
@@ -1162,7 +1294,10 @@ def run_pretreatment():
         selected_table = tables[table_choice - 1]
 
         df = _load_data(conn, selected_table)
-        print(f"\nテーブル '{selected_table}' を読み込みました (行: {df.shape[0]}, 列: {df.shape[1]})")
+        print(
+            f"\nテーブル '{selected_table}' を読み込みました "
+            f"(行: {df.shape[0]}, 列: {df.shape[1]})"
+        )
 
         available_funcs = [
             overview_data,
@@ -1206,13 +1341,17 @@ def run_pretreatment():
 
         while True:
             func_choices = [*func_names, "保存して終了", "保存せずに終了"]
-            choice = _get_user_choice("適用する前処理関数を選択してください:", func_choices)
+            choice = _get_user_choice(
+                "適用する前処理関数を選択してください:", func_choices
+            )
 
             if choice == len(func_choices) - 1:  # 保存して終了
                 save_to_database(df, conn)
                 break
             if choice == len(func_choices):  # 保存せずに終了
-                if _get_user_choice("変更を保存せずに終了しますか?", ["はい", "いいえ"]) == 1:
+                if _get_user_choice(
+                    "変更を保存せずに終了しますか?", ["はい", "いいえ"]
+                ) == 1:
                     break
                 continue
 
@@ -1224,7 +1363,9 @@ def run_pretreatment():
                 print(f"\n処理完了: {func.__name__}")
                 print(f"現在のデータ形状: {df.shape}")
 
-                if _get_user_choice("この時点でデータを保存しますか?", ["いいえ", "はい"]) == 2:
+                if _get_user_choice(
+                    "この時点でデータを保存しますか?", ["いいえ", "はい"]
+                ) == 2:
                     save_to_database(df, conn)
 
             except Exception as e:

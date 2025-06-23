@@ -8,10 +8,10 @@ from pathlib import Path
 
 import polars as pl
 
-from ..interfaces.pipeline_interface import IPipeline
-from ..interfaces.model_interface import IModel
 from ...features.managers.feature_manager import FeatureManager
 from ...features.managers.target_manager import TargetManager
+from ..interfaces.model_interface import IModel
+from ..interfaces.pipeline_interface import IPipeline
 
 
 class BasePipeline(IPipeline):
@@ -107,4 +107,4 @@ class BasePipeline(IPipeline):
         """
         model_status = "trained" if self._model.is_trained() else "untrained"
         feature_count = self._feature_manager.get_enabled_feature_count()
-        return f"{self.__class__.__name__}(model={self._model.get_model_name()}, status={model_status}, features={feature_count})" 
+        return f"{self.__class__.__name__}(model={self._model.get_model_name()}, status={model_status}, features={feature_count})"

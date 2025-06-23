@@ -8,10 +8,6 @@ import polars as pl
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.models.implementations.lightgbm_model import LightGBMRegressor
-from src.features.managers.feature_manager import FeatureManager
-from src.features.managers.target_manager import TargetManager
-from src.pipelines.implementations.tree_pipeline import TreeModelPipeline
 from src.data.utils.data_loader import (
     load_data_from_sqlite_polars,
     validate_db_path,
@@ -21,6 +17,10 @@ from src.data.utils.interactive_selector import (
     select_table_interactively,
     validate_table_exists,
 )
+from src.features.managers.feature_manager import FeatureManager
+from src.features.managers.target_manager import TargetManager
+from src.models.implementations.lightgbm_model import LightGBMRegressor
+from src.pipelines.implementations.tree_pipeline import TreeModelPipeline
 
 
 @dataclass
@@ -43,7 +43,9 @@ def feature_engineering(data: pl.DataFrame, feature_columns: list[str]) -> pl.Da
         )
 
         # Day of week: 0=Monday, 1=Tuesday, ..., 6=Sunday
-        processed_data = processed_data.with_columns(pl.col("datetime").dt.weekday().alias("dow"))
+        processed_data = processed_data.with_columns(
+            pl.col("datetime").dt.weekday().alias("dow")
+        )
 
     # 給料日が 25 日以降なので、25 日以降を月末として特徴量にする
     if "date_day" in data.columns:
@@ -60,14 +62,19 @@ def feature_engineering(data: pl.DataFrame, feature_columns: list[str]) -> pl.Da
     # ランチタイム・ディナータイム
     if "time" in data.columns:
         processed_data = processed_data.with_columns(
-            pl.when(pl.col("time").is_in([11, 12, 13])).then(1).otherwise(0).alias("is_lunch")
+            pl.when(pl.col("time").is_in([11, 12, 13]))
+            .then(1)
+            .otherwise(0)
+            .alias("is_lunch")
         )
         processed_data = processed_data.with_columns(
             pl.when(pl.col("time") >= 18).then(1).otherwise(0).alias("is_dinner")
         )
 
     # 指定された特徴量列のみを選択
-    available_columns = [col for col in feature_columns if col in processed_data.columns]
+    available_columns = [
+        col for col in feature_columns if col in processed_data.columns
+    ]
     processed_data = processed_data.select(available_columns)
 
     print("特徴量の確認:")
@@ -88,7 +95,11 @@ def load_saved_model(model_path: Path) -> tuple[TreeModelPipeline, dict]:
     model = LightGBMRegressor()
     feature_manager = FeatureManager()
     target_manager = TargetManager(pl.Series("dummy", [0.0]))
-    pipeline = TreeModelPipeline(model=model, feature_manager=feature_manager, target_manager=target_manager)
+    pipeline = TreeModelPipeline(
+        model=model,
+        feature_manager=feature_manager,
+        target_manager=target_manager
+    )
 
     # パイプライン全体を読み込み
     pipeline.load_model(model_path)
@@ -134,13 +145,18 @@ def interactive_setup(db_path: Path) -> str:
         for col_name, col_info in table_info["columns"].items():
             if "error" not in col_info:
                 print(
-                    f"    {col_name}: {col_info['type']} (NULL: {col_info['null_count']}, ユニーク: {col_info['unique_count']})"
+                    f"    {col_name}: {col_info['type']} "
+                    f"(NULL: {col_info['null_count']}, "
+                    f"ユニーク: {col_info['unique_count']})"
                 )
 
     return table_name
 
 
-def validate_features(test_data: pl.DataFrame, required_features: list[str]) -> list[str]:
+def validate_features(
+    test_data: pl.DataFrame,
+    required_features: list[str]
+) -> list[str]:
     """テストデータに必要な特徴量が存在するかチェック"""
     available_features = []
     missing_features = []

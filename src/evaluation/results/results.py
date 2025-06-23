@@ -65,4 +65,4 @@ class MetricsResult:
 
     def __str__(self) -> str:
         """評価指標結果の文字列表現を返す。"""
-        return f"MSE: {self.mse:.4f}, RMSE: {self.rmse:.4f}, MAE: {self.mae:.4f}, R²: {self.r2:.4f}" 
+        return f"MSE: {self.mse:.4f}, RMSE: {self.rmse:.4f}, MAE: {self.mae:.4f}, R²: {self.r2:.4f}"

@@ -6,7 +6,6 @@ SQLiteデータベースの操作を抽象化するクラスを提供します�
 
 import sqlite3
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
 
 
 class SQLiteHandler:
@@ -19,7 +18,7 @@ class SQLiteHandler:
             db_path (Path): SQLiteデータベースファイルのパス
         """
         self.db_path = Path(db_path)
-        self.connection: Optional[sqlite3.Connection] = None
+        self.connection: sqlite3.Connection | None = None
 
     def __enter__(self):
         """コンテキストマネージャーのエントリーポイント。"""
@@ -54,12 +53,12 @@ class SQLiteHandler:
         """
         if self.connection is None:
             self.connect()
-        
+
         cursor = self.connection.cursor()
         cursor.execute(query, params)
         return cursor
 
-    def fetch_one(self, query: str, params: tuple = ()) -> Optional[Tuple]:
+    def fetch_one(self, query: str, params: tuple = ()) -> tuple | None:
         """単一のレコードを取得する。
 
         Args:
@@ -72,7 +71,7 @@ class SQLiteHandler:
         cursor = self.execute(query, params)
         return cursor.fetchone()
 
-    def fetch_all(self, query: str, params: tuple = ()) -> List[Tuple]:
+    def fetch_all(self, query: str, params: tuple = ()) -> list[tuple]:
         """すべてのレコードを取得する。
 
         Args:
@@ -108,7 +107,7 @@ class SQLiteHandler:
         result = self.fetch_one(query, (table_name,))
         return result is not None
 
-    def get_table_info(self, table_name: str) -> List[Tuple]:
+    def get_table_info(self, table_name: str) -> list[tuple]:
         """テーブルの情報を取得する。
 
         Args:
@@ -120,7 +119,7 @@ class SQLiteHandler:
         query = f"PRAGMA table_info({table_name})"
         return self.fetch_all(query)
 
-    def create_table(self, table_name: str, columns: List[Tuple[str, str]]) -> None:
+    def create_table(self, table_name: str, columns: list[tuple[str, str]]) -> None:
         """テーブルを作成する。
 
         Args:
@@ -132,7 +131,7 @@ class SQLiteHandler:
         self.execute(query)
         self.commit()
 
-    def insert_many(self, table_name: str, data: List[Tuple]) -> None:
+    def insert_many(self, table_name: str, data: list[tuple]) -> None:
         """複数のレコードを挿入する。
 
         Args:
@@ -144,12 +143,12 @@ class SQLiteHandler:
 
         placeholders = ", ".join(["?" for _ in data[0]])
         query = f"INSERT INTO {table_name} VALUES ({placeholders})"
-        
+
         cursor = self.connection.cursor()
         cursor.executemany(query, data)
         self.commit()
 
-    def insert_one(self, table_name: str, data: Tuple) -> None:
+    def insert_one(self, table_name: str, data: tuple) -> None:
         """単一のレコードを挿入する。
 
         Args:
@@ -158,7 +157,7 @@ class SQLiteHandler:
         """
         placeholders = ", ".join(["?" for _ in data])
         query = f"INSERT INTO {table_name} VALUES ({placeholders})"
-        
+
         self.execute(query, data)
         self.commit()
 
@@ -173,7 +172,7 @@ class SQLiteHandler:
         """
         set_clause = ", ".join([f"{key} = ?" for key in set_values.keys()])
         query = f"UPDATE {table_name} SET {set_clause} WHERE {where_condition}"
-        
+
         params = tuple(set_values.values()) + where_params
         self.execute(query, params)
         self.commit()
@@ -203,7 +202,7 @@ class SQLiteHandler:
         result = self.fetch_one(query)
         return result[0] if result else 0
 
-    def get_table_schema(self, table_name: str) -> List[Tuple]:
+    def get_table_schema(self, table_name: str) -> list[tuple]:
         """テーブルのスキーマを取得する。
 
         Args:
@@ -212,6 +211,6 @@ class SQLiteHandler:
         Returns:
             List[Tuple]: スキーマ情報のリスト
         """
-        query = f"SELECT sql FROM sqlite_master WHERE type='table' AND name=?"
+        query = "SELECT sql FROM sqlite_master WHERE type='table' AND name=?"
         result = self.fetch_one(query, (table_name,))
-        return result[0] if result else None 
+        return result[0] if result else None

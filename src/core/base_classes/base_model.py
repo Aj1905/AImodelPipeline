@@ -4,10 +4,7 @@
 すべてのモデル実装の基底となるクラスを定義します。
 """
 
-from pathlib import Path
 from typing import Any
-
-import polars as pl
 
 from ..interfaces.model_interface import IModel
 
@@ -56,4 +53,4 @@ class BaseModel(IModel):
             str: オブジェクトの文字列表現
         """
         status = "trained" if self._is_trained else "untrained"
-        return f"{self.__class__.__name__}(name='{self.model_name}', status='{status}')" 
+        return f"{self.__class__.__name__}(name='{self.model_name}', status='{status}')"

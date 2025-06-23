@@ -13,14 +13,14 @@ SQLiteデータベース操作のための再利用可能なユーティリテ�
 import sys
 from pathlib import Path
 
-# プロジェクトルートをパスに追加
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-
 import pandas as pd
 import polars as pl
 
 from src.data.sqlite_handler import SQLiteHandler
+
+# プロジェクトルートをパスに追加
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 
 def _get_user_choice(prompt: str, options: list[str]) -> int:
@@ -145,7 +145,8 @@ def interactive_setup(db_path: Path) -> tuple[str, str, list[str]]:
         for col_name, col_info in table_info["columns"].items():
             if "error" not in col_info:
                 print(
-                    f"    {col_name}: {col_info['type']} (NULL: {col_info['null_count']}, ユニーク: {col_info['unique_count']})"
+                    f"    {col_name}: {col_info['type']} (NULL: {col_info['null_count']}, "
+                    f"ユニーク: {col_info['unique_count']})"
                 )
 
     # ターゲット列選択
@@ -186,7 +187,10 @@ def get_available_tables(db_path: Path) -> list[str]:
     """
     handler = SQLiteHandler(db_path)
     try:
-        query = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        query = (
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name NOT LIKE 'sqlite_%'"
+        )
         results = handler.fetch_all(query)
         return [row[0] for row in results]
     except Exception as e:
@@ -228,7 +232,9 @@ def select_table_interactively(db_path: Path) -> str | None:
 
     while True:
         try:
-            choice = input(f"\nテーブルを選択してください (1-{len(tables)}) または 'q' で終了: ").strip()
+            choice = input(
+                f"\nテーブルを選択してください (1-{len(tables)}) または 'q' で終了: "
+            ).strip()
             if choice.lower() == "q":
                 return None
 
@@ -325,11 +331,15 @@ def get_table_info_summary(db_path: Path, table_name: str) -> dict:
         for _cid, name, dtype, _notnull, _default_value, _pk in columns_info:
             try:
                 # NULL値の数を取得
-                null_count_result = handler.fetch_one(f'SELECT COUNT(*) FROM {table_name} WHERE "{name}" IS NULL')
+                null_count_result = handler.fetch_one(
+                    f'SELECT COUNT(*) FROM {table_name} WHERE "{name}" IS NULL'
+                )
                 null_count = null_count_result[0] if null_count_result else 0
 
                 # ユニーク値の数を取得
-                unique_count_result = handler.fetch_one(f'SELECT COUNT(DISTINCT "{name}") FROM {table_name}')
+                unique_count_result = handler.fetch_one(
+                    f'SELECT COUNT(DISTINCT "{name}") FROM {table_name}'
+                )
                 unique_count = unique_count_result[0] if unique_count_result else 0
 
                 column_stats[name] = {
@@ -342,7 +352,12 @@ def get_table_info_summary(db_path: Path, table_name: str) -> dict:
             except Exception as e:
                 column_stats[name] = {"type": dtype, "error": str(e)}
 
-        return {"table_name": table_name, "row_count": row_count, "column_count": column_count, "columns": column_stats}
+        return {
+            "table_name": table_name,
+            "row_count": row_count,
+            "column_count": column_count,
+            "columns": column_stats,
+        }
     except Exception as e:
         print(f"テーブル情報取得エラー: {e}")
         return {}
@@ -363,7 +378,9 @@ def validate_table_exists(db_path: Path, table_name: str) -> bool:
     return handler.table_exists(table_name)
 
 
-def validate_columns_exist(db_path: Path, table_name: str, column_names: list[str]) -> tuple[bool, list[str]]:
+def validate_columns_exist(
+    db_path: Path, table_name: str, column_names: list[str]
+) -> tuple[bool, list[str]]:
     """
     指定された列がテーブルに存在するかどうかを確認する
 

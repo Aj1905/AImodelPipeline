@@ -24,7 +24,7 @@ class TrainingResult:
     def __str__(self) -> str:
         """学習結果の包括的な文字列表現を返す。"""
         return (
-            "📊 学習結果:\n"
+            "📈 学習結果:\n"
             f"訓練データサイズ: {self.train_size}\n"
             f"テストデータサイズ: {self.test_size}\n"
             f"特徴量数: {self.feature_count}\n\n"

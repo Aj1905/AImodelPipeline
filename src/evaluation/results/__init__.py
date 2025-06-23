@@ -1,3 +1,3 @@
-from .results import TrainingResult, CrossValidationResult, MetricsResult
+from .results import CrossValidationResult, MetricsResult, TrainingResult
 
-__all__ = ["TrainingResult", "CrossValidationResult", "MetricsResult"]
+__all__ = ["CrossValidationResult", "MetricsResult", "TrainingResult"]

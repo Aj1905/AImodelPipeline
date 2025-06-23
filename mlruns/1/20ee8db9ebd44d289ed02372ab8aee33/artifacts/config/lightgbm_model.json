@@ -1,0 +1,34 @@
+{
+  "table_name": "mores",
+  "target_column": "sales",
+  "feature_columns": [
+    "time",
+    "prev_year_same_weekday_sales",
+    "dow_flag",
+    "holiday",
+    "time_block_L",
+    "prev_year_same_weekday_sales_daily_sum",
+    "prev_year_same_weekday_sales_monthly_sum"
+  ],
+  "model_type": "LightGBM",
+  "save_timestamp": "2025-06-24 03:10:32.662426",
+  "comments": [
+    "データソース: mores (SQLite)",
+    "ターゲット列: sales",
+    "特徴量数: 7",
+    "データサイズ: 8382 行",
+    "分割方法: ランダム分割",
+    "特徴量エンジニアリング: 日時特徴量、時間特徴量、文字列変換、欠損値補完",
+    "モデル: LightGBM (回帰)",
+    "ハイパーパラメータ: デフォルト設定 (num_boost_round=200, early_stopping_rounds=10)"
+  ],
+  "training_info": {
+    "data_size": 7543,
+    "feature_count": 7,
+    "training_timestamp": "2025-06-24T03:10:32.492736",
+    "num_boost_round": 200,
+    "early_stopping_rounds": 10,
+    "best_iteration": 0,
+    "best_score": {}
+  }
+}

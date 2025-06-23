@@ -5,8 +5,7 @@
 """
 
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 import polars as pl
 
@@ -37,7 +36,7 @@ class IDataRepository(ABC):
         pass
 
     @abstractmethod
-    def get_available_tables(self) -> List[str]:
+    def get_available_tables(self) -> list[str]:
         """利用可能なテーブル一覧を取得する。
 
         Returns:
@@ -55,4 +54,4 @@ class IDataRepository(ABC):
         Returns:
             dict[str, Any]: テーブル情報
         """
-        pass 
+        pass

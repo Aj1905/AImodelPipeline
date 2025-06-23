@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-段階チューニング機能を使用するスクリプト
+段階的チューニングスクリプト
 
-このスクリプトは、db_utils.pyのみを使用して段階的なハイパーパラメータチューニングを実行し、
-結果をtuning_resultディレクトリに保存します。
+このスクリプトは、機械学習モデルの段階的チューニングを実行します。
 
 使用方法:
-    python 06_staged_tuning.py --action new --table TABLE_NAME --target TARGET_COLUMN --project PROJECT_NAME
+    python 06_staged_tuning.py --action new --table TABLE_NAME --target TARGET_COLUMN
+        --project PROJECT_NAME
     python 06_staged_tuning.py --action list
     python 06_staged_tuning.py --action details --project PROJECT_NAME
 """
@@ -14,15 +14,15 @@
 import argparse
 import json
 import sys
-import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import numpy as np
+import mlflow
 import pandas as pd
-
-warnings.filterwarnings("ignore")
+from lightgbm import LGBMRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
 
 # プロジェクトルートをパスに追加
 project_root = Path(__file__).parent.parent.parent
@@ -36,355 +36,436 @@ from src.data.utils.interactive_selector import (
     _get_user_choice,
 )
 
+# ============================================================================
+# 定数定義
+# ============================================================================
 
-def simple_data_preprocessing(df: pd.DataFrame) -> pd.DataFrame:
-    """シンプルなデータ前処理"""
-    print("データ前処理を実行中...")
+DEFAULT_DB_PATH = "data/database.sqlite"
+DEFAULT_MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
 
-    # 数値列のみを選択
-    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-
-    if len(numeric_columns) < 2:
-        print("❌ 数値列が不足しています")
-        return pd.DataFrame()
-
-    # 欠損値を処理
-    df_processed = df[numeric_columns].copy()
-    df_processed = df_processed.fillna(df_processed.mean())
-
-    print(f"✓ 前処理完了 (使用列数: {len(numeric_columns)})")
-    return df_processed
+# ============================================================================
+# 関数定義
+# ============================================================================
 
 
-def simple_ml_pipeline(x: pd.DataFrame, y: pd.Series, test_size: float = 0.2) -> dict[str, Any]:
-    """シンプルな機械学習パイプライン"""
-    from sklearn.ensemble import RandomForestRegressor
-    from sklearn.metrics import mean_squared_error, r2_score
-    from sklearn.model_selection import train_test_split
+def simple_ml_pipeline(
+    x: pd.DataFrame,
+    y: pd.Series,
+    test_size: float = 0.2
+) -> dict[str, Any]:
+    """
+    シンプルな機械学習パイプライン
 
+    Args:
+        x: 特徴量データ
+        y: ターゲットデータ
+        test_size: テストデータの割合
+
+    Returns:
+        学習結果の辞書
+    """
     # データ分割
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, random_state=42)
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=test_size, random_state=42
+    )
 
     # モデル学習
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model = LGBMRegressor(random_state=42, verbose=-1)
     model.fit(x_train, y_train)
 
     # 予測
     y_pred = model.predict(x_test)
 
-    # 評価
+    # 評価指標計算
     mse = mean_squared_error(y_test, y_pred)
     r2 = r2_score(y_test, y_pred)
 
-    return {"mse": mse, "r2": r2, "model": model}
-
-
-def staged_tuning(df: pd.DataFrame, target_column: str, feature_columns: list[str]) -> dict[str, Any]:
-    """段階的なチューニングを実行"""
-    print("\n=== 段階チューニング開始 ===")
-    print(f"目的変数: {target_column}")
-    print(f"特徴量数: {len(feature_columns)}")
-
-    # データ準備
-    x = df[feature_columns]
-    y = df[target_column]
-
-    # 段階1: 基本モデル
-    print("\n段階1: 基本モデル")
-    basic_results = simple_ml_pipeline(x, y)
-    print(f"  MSE: {basic_results['mse']:.4f}")
-    print(f"  R²: {basic_results['r2']:.4f}")
-
-    # 段階2: 特徴量選択
-    print("\n段階2: 特徴量選択")
-    feature_importance = basic_results["model"].feature_importances_
-    sorted_features = sorted(zip(feature_columns, feature_importance, strict=False), key=lambda x: x[1], reverse=True)
-
-    # 上位50%の特徴量を選択
-    top_features = [f[0] for f in sorted_features[: len(sorted_features) // 2]]
-    print(f"  選択された特徴量数: {len(top_features)}")
-
-    if len(top_features) > 0:
-        x_selected = x[top_features]
-        selected_results = simple_ml_pipeline(x_selected, y)
-        print(f"  MSE: {selected_results['mse']:.4f}")
-        print(f"  R²: {selected_results['r2']:.4f}")
-    else:
-        selected_results = basic_results
-        top_features = feature_columns
-
-    # 結果をまとめる
-    results = {
-        "timestamp": datetime.now().isoformat(),
-        "target_column": target_column,
-        "initial_features": feature_columns,
-        "selected_features": top_features,
-        "basic_model": {"mse": basic_results["mse"], "r2": basic_results["r2"]},
-        "selected_model": {"mse": selected_results["mse"], "r2": selected_results["r2"]},
-        "feature_importance": dict(sorted_features),
+    return {
+        "model": model,
+        "mse": mse,
+        "r2": r2,
+        "x_test": x_test,
+        "y_test": y_test,
+        "y_pred": y_pred
     }
 
-    return results
+
+def staged_tuning(
+    df: pd.DataFrame,
+    target_column: str,
+    feature_columns: list[str]
+) -> dict[str, Any]:
+    """
+    段階的チューニングを実行
+
+    Args:
+        df: データフレーム
+        target_column: ターゲット列名
+        feature_columns: 特徴量列名のリスト
+
+    Returns:
+        チューニング結果の辞書
+    """
+    # 基本モデルの学習
+    x = df[feature_columns]
+    y = df[target_column]
+    basic_results = simple_ml_pipeline(x, y)
+
+    # 特徴量重要度による特徴量選択
+    feature_importance = basic_results["model"].feature_importances_
+    sorted_features = sorted(
+        zip(feature_columns, feature_importance, strict=False),
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    # 上位50%の特徴量を選択
+    top_n = max(1, len(feature_columns) // 2)
+    top_features = [feature for feature, _ in sorted_features[:top_n]]
+
+    # 選択された特徴量でモデル再学習
+    x_selected = df[top_features]
+    selected_results = simple_ml_pipeline(x_selected, y)
+
+    # 結果を辞書にまとめる
+    feature_importance_dict = {
+        feature: float(importance)
+        for feature, importance in sorted_features
+    }
+
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "feature_importance": feature_importance_dict,
+        "selected_features": top_features,
+        "basic_model": {
+            "mse": basic_results["mse"],
+            "r2": basic_results["r2"]
+        },
+        "selected_model": {
+            "mse": selected_results["mse"],
+            "r2": selected_results["r2"]
+        },
+        "total_features": len(feature_columns),
+        "selected_feature_count": len(top_features)
+    }
 
 
-def save_tuning_results(results: dict[str, Any], project_name: str):
-    """チューニング結果を保存"""
-    tuning_dir = project_root / "tuning_result"
-    tuning_dir.mkdir(exist_ok=True)
+def list_projects():
+    """プロジェクト一覧を表示"""
+    try:
+        mlflow.set_tracking_uri(DEFAULT_MLFLOW_TRACKING_URI)
+        client = mlflow.tracking.MlflowClient()
 
-    # プロジェクトディレクトリを作成
-    project_dir = tuning_dir / project_name
-    project_dir.mkdir(exist_ok=True)
+        experiments = client.list_experiments()
+        if not experiments:
+            print("プロジェクトが見つかりません")
+            return
 
-    # 結果をJSONファイルに保存
-    results_file = project_dir / "results.json"
-    with open(results_file, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
+        print("\n📋 プロジェクト一覧:")
+        print("=" * 60)
+        for exp in experiments:
+            print(f"📁 {exp.name}")
+            print(f"   実験ID: {exp.experiment_id}")
+            print(f"   作成日時: {exp.creation_time}")
+            print()
 
-    print(f"\n✓ 結果を保存しました: {results_file}")
+    except Exception as e:
+        print(f"プロジェクト一覧の取得に失敗しました: {e}")
 
 
-def list_tuning_projects():
-    """チューニングプロジェクトの一覧を表示"""
-    tuning_dir = project_root / "tuning_result"
+def show_project_details(project_name: str):
+    """プロジェクトの詳細を表示"""
+    try:
+        mlflow.set_tracking_uri(DEFAULT_MLFLOW_TRACKING_URI)
+        client = mlflow.tracking.MlflowClient()
 
-    if not tuning_dir.exists():
-        print("チューニング結果ディレクトリが存在しません")
-        return
+        # 実験を取得
+        experiment = client.get_experiment_by_name(project_name)
+        if not experiment:
+            print(f"プロジェクト '{project_name}' が見つかりません")
+            return
 
-    projects = [d for d in tuning_dir.iterdir() if d.is_dir()]
+        # 実行履歴を取得
+        runs = client.search_runs(
+            experiment_ids=[experiment.experiment_id],
+            order_by=["attributes.start_time DESC"]
+        )
 
-    if not projects:
-        print("チューニングプロジェクトが見つかりません")
-        return
+        if not runs:
+            print(f"プロジェクト '{project_name}' に実行履歴がありません")
+            return
 
-    print("\n=== チューニングプロジェクト一覧 ===")
-    for i, project in enumerate(projects, 1):
-        results_file = project / "results.json"
-        if results_file.exists():
+        print(f"\n📊 プロジェクト詳細: {project_name}")
+        print("=" * 60)
+
+        for run in runs:
             try:
-                with open(results_file, encoding="utf-8") as f:
-                    results = json.load(f)
-                print(f"{i}. {project.name}")
-                print(f"   目的変数: {results.get('target_column', 'N/A')}")
-                print(f"   実行日時: {results.get('timestamp', 'N/A')}")
-                print(f"   基本モデル R²: {results.get('basic_model', {}).get('r2', 'N/A')}")
+                print(f"🔄 実行ID: {run.info.run_id}")
+                print(f"   実行日時: {run.info.start_time}")
+                print(
+                    f"   基本モデル R²: {run.data.metrics.get('basic_r2', 'N/A')}"
+                )
+                print(f"   選択モデル R²: {run.data.metrics.get('selected_r2', 'N/A')}")
+                print(f"   特徴量数: {run.data.params.get('total_features', 'N/A')}")
+                print(f"   選択特徴量数: {run.data.params.get('selected_features', 'N/A')}")
+                print()
             except Exception as e:
-                print(f"{i}. {project.name} (読み込みエラー: {e})")
-        else:
-            print(f"{i}. {project.name} (結果ファイルなし)")
-
-
-def display_project_details():
-    """プロジェクト詳細を表示"""
-    tuning_dir = project_root / "tuning_result"
-
-    if not tuning_dir.exists():
-        print("チューニング結果ディレクトリが存在しません")
-        return
-
-    projects = [d for d in tuning_dir.iterdir() if d.is_dir()]
-
-    if not projects:
-        print("チューニングプロジェクトが見つかりません")
-        return
-
-    project_names = [p.name for p in projects]
-    choice = _get_user_choice("詳細を表示するプロジェクトを選択してください:", project_names)
-    selected_project = projects[choice - 1]
-
-    results_file = selected_project / "results.json"
-    if not results_file.exists():
-        print("結果ファイルが見つかりません")
-        return
-
-    try:
-        with open(results_file, encoding="utf-8") as f:
-            results = json.load(f)
-
-        print(f"\n=== プロジェクト詳細: {selected_project.name} ===")
-        print(f"実行日時: {results.get('timestamp', 'N/A')}")
-        print(f"目的変数: {results.get('target_column', 'N/A')}")
-        print(f"初期特徴量数: {len(results.get('initial_features', []))}")
-        print(f"選択特徴量数: {len(results.get('selected_features', []))}")
-
-        print("\n基本モデル:")
-        basic_model = results.get("basic_model", {})
-        print(f"  MSE: {basic_model.get('mse', 'N/A')}")
-        print(f"  R²: {basic_model.get('r2', 'N/A')}")
-
-        print("\n選択モデル:")
-        selected_model = results.get("selected_model", {})
-        print(f"  MSE: {selected_model.get('mse', 'N/A')}")
-        print(f"  R²: {selected_model.get('r2', 'N/A')}")
-
-        print("\n特徴量重要度 (上位10件):")
-        feature_importance = results.get("feature_importance", {})
-        sorted_features = sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)
-        for i, (feature, importance) in enumerate(sorted_features[:10], 1):
-            print(f"  {i}. {feature}: {importance:.4f}")
+                print(f"   実行情報の取得に失敗: {e}")
 
     except Exception as e:
-        print(f"結果ファイルの読み込みエラー: {e}")
+        print(f"プロジェクト詳細の取得に失敗しました: {e}")
 
 
-def display_project_details_by_name(project_name: str):
-    """プロジェクト名を指定して詳細を表示"""
-    tuning_dir = project_root / "tuning_result"
-    selected_project = tuning_dir / project_name
-
-    if not tuning_dir.exists():
-        print("チューニング結果ディレクトリが存在しません")
-        return
-
-    if not selected_project.exists():
-        print(f"プロジェクト '{project_name}' が見つかりません")
-        return
-
-    results_file = selected_project / "results.json"
-    if not results_file.exists():
-        print("結果ファイルが見つかりません")
-        return
-
+def compare_projects():
+    """プロジェクト間の比較"""
     try:
-        with open(results_file, encoding="utf-8") as f:
-            results = json.load(f)
+        mlflow.set_tracking_uri(DEFAULT_MLFLOW_TRACKING_URI)
+        client = mlflow.tracking.MlflowClient()
 
-        print(f"\n=== プロジェクト詳細: {selected_project.name} ===")
-        print(f"実行日時: {results.get('timestamp', 'N/A')}")
-        print(f"目的変数: {results.get('target_column', 'N/A')}")
-        print(f"初期特徴量数: {len(results.get('initial_features', []))}")
-        print(f"選択特徴量数: {len(results.get('selected_features', []))}")
+        experiments = client.list_experiments()
+        if not experiments:
+            print("比較対象のプロジェクトが見つかりません")
+            return
 
-        print("\n基本モデル:")
-        basic_model = results.get("basic_model", {})
-        print(f"  MSE: {basic_model.get('mse', 'N/A')}")
-        print(f"  R²: {basic_model.get('r2', 'N/A')}")
+        project_names = [p.name for p in experiments]
+        choice = _get_user_choice(
+            "詳細を表示するプロジェクトを選択してください:",
+            project_names
+        )
 
-        print("\n選択モデル:")
-        selected_model = results.get("selected_model", {})
-        print(f"  MSE: {selected_model.get('mse', 'N/A')}")
-        print(f"  R²: {selected_model.get('r2', 'N/A')}")
-
-        print("\n特徴量重要度 (上位10件):")
-        feature_importance = results.get("feature_importance", {})
-        sorted_features = sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)
-        for i, (feature, importance) in enumerate(sorted_features[:10], 1):
-            print(f"  {i}. {feature}: {importance:.4f}")
+        if choice > 0:
+            selected_project = project_names[choice - 1]
+            show_project_details(selected_project)
 
     except Exception as e:
-        print(f"結果ファイルの読み込みエラー: {e}")
+        print(f"プロジェクト比較に失敗しました: {e}")
+
+
+def show_feature_importance(project_name: str):
+    """特徴量重要度を表示"""
+    try:
+        mlflow.set_tracking_uri(DEFAULT_MLFLOW_TRACKING_URI)
+        client = mlflow.tracking.MlflowClient()
+
+        experiment = client.get_experiment_by_name(project_name)
+        if not experiment:
+            print(f"プロジェクト '{project_name}' が見つかりません")
+            return
+
+        runs = client.search_runs(
+            experiment_ids=[experiment.experiment_id],
+            order_by=["attributes.start_time DESC"],
+            max_results=1
+        )
+
+        if not runs:
+            print(f"プロジェクト '{project_name}' に実行履歴がありません")
+            return
+
+        run = runs[0]
+        results = json.loads(run.data.params.get("results", "{}"))
+
+        if "feature_importance" in results:
+            feature_importance = results.get("feature_importance", {})
+            sorted_features = sorted(
+                feature_importance.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )
+
+            print(f"\n🎯 特徴量重要度 (プロジェクト: {project_name})")
+            print("=" * 60)
+            for i, (feature, importance) in enumerate(sorted_features[:10], 1):
+                print(f"{i:2d}. {feature}: {importance:.4f}")
+
+    except Exception as e:
+        print(f"特徴量重要度の表示に失敗しました: {e}")
+
+
+def show_feature_importance_comparison():
+    """プロジェクト間の特徴量重要度比較"""
+    try:
+        mlflow.set_tracking_uri(DEFAULT_MLFLOW_TRACKING_URI)
+        client = mlflow.tracking.MlflowClient()
+
+        experiments = client.list_experiments()
+        if not experiments:
+            print("比較対象のプロジェクトが見つかりません")
+            return
+
+        project_names = [p.name for p in experiments]
+        choice = _get_user_choice(
+            "特徴量重要度を表示するプロジェクトを選択してください:",
+            project_names
+        )
+
+        if choice > 0:
+            selected_project = project_names[choice - 1]
+            show_feature_importance(selected_project)
+
+    except Exception as e:
+        print(f"特徴量重要度比較に失敗しました: {e}")
+
+
+def parse_arguments():
+    """コマンドライン引数を解析する"""
+    parser = argparse.ArgumentParser(description="段階的チューニングスクリプト")
+    parser.add_argument(
+        "--action",
+        choices=["new", "list", "details", "compare", "importance"],
+        required=True,
+        help="実行するアクション"
+    )
+    parser.add_argument(
+        "--table",
+        help="対象テーブル名 (action=newの場合に使用)"
+    )
+    parser.add_argument(
+        "--target",
+        help="ターゲット列名 (action=newの場合に使用)"
+    )
+    parser.add_argument(
+        "--project",
+        help="プロジェクト名 (action=newまたはdetailsの場合に使用)"
+    )
+    parser.add_argument(
+        "--db-file",
+        type=str,
+        default=DEFAULT_DB_PATH,
+        help="SQLiteデータベースファイルパス"
+    )
+    return parser.parse_args()
 
 
 def main():
     """メイン関数"""
-    parser = argparse.ArgumentParser(
-        description="段階チューニングスクリプト",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-使用例:
-  %(prog)s --action new --table sales_data --target revenue --project my_tuning
-  %(prog)s --action list
-  %(prog)s --action details --project my_tuning
-        """,
-    )
+    args = parse_arguments()
 
-    parser.add_argument(
-        "--action",
-        choices=["new", "list", "details"],
-        required=True,
-        help="実行する操作: new (新しいチューニング), list (プロジェクト一覧), details (詳細表示)",
-    )
+    if args.action == "list":
+        list_projects()
+        return
 
-    parser.add_argument("--table", help="使用するテーブル名 (action=newの場合に必要)")
+    if args.action == "details":
+        if not args.project:
+            print("--project オプションが必要です")
+            return
+        show_project_details(args.project)
+        return
 
-    parser.add_argument("--target", help="目的変数名 (action=newの場合に必要)")
+    if args.action == "compare":
+        compare_projects()
+        return
 
-    parser.add_argument("--project", help="プロジェクト名 (action=newまたはdetailsの場合に使用)")
-
-    parser.add_argument(
-        "--db-path",
-        default=str(project_root / "data" / "database.sqlite"),
-        help="データベースファイルのパス (デフォルト: data/database.sqlite)",
-    )
-
-    args = parser.parse_args()
+    if args.action == "importance":
+        if not args.project:
+            show_feature_importance_comparison()
+        else:
+            show_feature_importance(args.project)
+        return
 
     if args.action == "new":
         if not args.table or not args.target:
-            print("❌ 新しいチューニングには --table と --target が必要です")
-            sys.exit(1)
-        execute_new_staged_tuning(args.table, args.target, args.project, args.db_path)
-    elif args.action == "list":
-        list_tuning_projects()
-    elif args.action == "details":
-        if not args.project:
-            print("❌ 詳細表示には --project が必要です")
-            sys.exit(1)
-        display_project_details_by_name(args.project)
-    else:
-        print("❌ 無効な操作です")
-        sys.exit(1)
+            print("--table と --target オプションが必要です")
+            return
+        execute_new_staged_tuning(
+            args.table,
+            args.target,
+            args.project,
+            args.db_file
+        )
 
 
-def execute_new_staged_tuning(table_name: str, target_column: str, project_name: str = None, db_path: str = None):
-    """新しい段階チューニングを実行"""
-    print("\n=== 新しい段階チューニング ===")
-
+def execute_new_staged_tuning(
+    table_name: str,
+    target_column: str,
+    project_name: str | None = None,
+    db_path: str | None = None
+):
+    """新しい段階的チューニングを実行"""
+    # データベースパスの設定
     if db_path is None:
-        db_path = str(project_root / "data" / "database.sqlite")
+        db_path = DEFAULT_DB_PATH
 
+    db_path = Path(db_path).expanduser().resolve()
     if not validate_db_path(db_path):
         return
 
     # データ読み込み
-    print(f"\nテーブル '{table_name}' からデータを読み込み中...")
-    data = load_data_from_table(db_path, table_name)
-
-    if data.empty:
-        print("❌ データの読み込みに失敗しました")
+    print(f"\n📊 データ読み込み中: {table_name}")
+    df = load_data_from_table(db_path, table_name)
+    if df is None or df.empty:
+        print("データの読み込みに失敗しました")
         return
 
-    # データ前処理
-    data_processed = simple_data_preprocessing(data)
+    print(f"読み込み完了: {df.shape[0]}行 x {df.shape[1]}列")
 
-    if data_processed.empty:
-        print("❌ データ前処理に失敗しました")
+    # ターゲット列の存在確認
+    if target_column not in df.columns:
+        print(f"ターゲット列 '{target_column}' が見つかりません")
         return
 
-    # 目的変数の存在確認
-    if target_column not in data_processed.columns:
-        print(f"❌ 目的変数 '{target_column}' がデータに存在しません")
-        print(f"利用可能な列: {', '.join(data_processed.columns)}")
+    # 特徴量列の取得(目的変数を除く)
+    feature_columns = [col for col in df.columns if col != target_column]
+
+    if not feature_columns:
+        print("特徴量列が見つかりません")
         return
 
-    # 特徴量の選択
-    feature_columns = [col for col in data_processed.columns if col != target_column]
-
-    if len(feature_columns) == 0:
-        print("❌ 特徴量が不足しています")
-        return
-
-    print(f"\n目的変数: {target_column}")
     print(f"特徴量数: {len(feature_columns)}")
 
+    # プロジェクト名の決定
+    if project_name is None:
+        project_name = f"{table_name}_{target_column}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
     # 段階チューニング実行
-    print("\n段階チューニングを開始します...")
+    print(f"\n🔄 段階的チューニング実行中: {project_name}")
+    results = staged_tuning(df, target_column, feature_columns)
+
+    # MLflowに記録
     try:
-        results = staged_tuning(data_processed, target_column, feature_columns)
+        mlflow.set_tracking_uri(DEFAULT_MLFLOW_TRACKING_URI)
+        mlflow.set_experiment(project_name)
 
-        # プロジェクト名の設定
-        if not project_name:
-            project_name = f"tuning_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        with mlflow.start_run():
+            # パラメータを記録
+            mlflow.log_params({
+                "table_name": table_name,
+                "target_column": target_column,
+                "total_features": results["total_features"],
+                "selected_features": results["selected_feature_count"],
+                "results": json.dumps(results)
+            })
 
-        # 結果を保存
-        save_tuning_results(results, project_name)
+            # メトリクスを記録
+            mlflow.log_metrics({
+                "basic_mse": results["basic_model"]["mse"],
+                "basic_r2": results["basic_model"]["r2"],
+                "selected_mse": results["selected_model"]["mse"],
+                "selected_r2": results["selected_model"]["r2"]
+            })
 
-        print("\n✓ 段階チューニングが完了しました")
-        print(f"最良スコア (R²): {results['selected_model']['r2']:.4f}")
+        print("✅ MLflowに記録完了")
 
     except Exception as e:
-        print(f"\n❌ 段階チューニングエラー: {e}")
+        print(f"MLflowへの記録に失敗しました: {e}")
+
+    # 結果表示
+    print("\n📊 チューニング結果:")
+    print(f"  基本モデル R²: {results['basic_model']['r2']:.4f}")
+    print(f"  選択モデル R²: {results['selected_model']['r2']:.4f}")
+    print(f"  特徴量数: {results['total_features']} → {results['selected_feature_count']}")
+
+    # 特徴量重要度トップ5を表示
+    feature_importance = results.get("feature_importance", {})
+    sorted_features = sorted(
+        feature_importance.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    print("\n🎯 特徴量重要度 (トップ5):")
+    for i, (feature, importance) in enumerate(sorted_features[:5], 1):
+        print(f"  {i}. {feature}: {importance:.4f}")
 
 
 if __name__ == "__main__":

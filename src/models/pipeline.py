@@ -54,7 +54,12 @@ class TrainingPipeline(ABC):
             ValueError: データが読み込まれていない場合
         """
 
-    def __init__(self, model: BaseModel, feature_manager: FeatureManager, target_manager: TargetManager):
+    def __init__(
+        self,
+        model: BaseModel,
+        feature_manager: FeatureManager,
+        target_manager: TargetManager
+    ):
         """TrainingPipelineを初期化する。
 
         Args:
@@ -70,7 +75,8 @@ class TrainingPipeline(ABC):
             raise ValueError("TargetManagerにターゲットが設定されていません")
         if feature_len != target_len:
             raise ValueError(
-                f"FeatureManagerとTargetManagerの行数が一致しません [features][{feature_len}][target][{target_len}]"
+                f"FeatureManagerとTargetManagerの行数が一致しません "
+                f"[features][{feature_len}][target][{target_len}]"
             )
         self.model = model
         self.feature_manager = feature_manager
@@ -116,4 +122,7 @@ class TrainingPipeline(ABC):
         """
         model_status = "trained" if self.model.is_trained() else "untrained"
         feature_count = self.feature_manager.get_enabled_feature_count()
-        return f"TrainingPipeline(model={self.model.get_model_name()}, status={model_status}, features={feature_count})"
+        return (
+            f"TrainingPipeline(model={self.model.get_model_name()}, "
+            f"status={model_status}, features={feature_count})"
+        )
