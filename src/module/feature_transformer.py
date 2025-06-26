@@ -8,18 +8,13 @@
 - データ型の自動検出
 """
 
-import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler
 
-# プロジェクトルートをパスに追加
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-from src.data.sqlite_handler import SQLiteHandler
+from src.data.loaders import SQLiteDataLoader
 
 
 class FeatureTransformer:
@@ -45,28 +40,10 @@ class FeatureTransformer:
         Returns:
             読み込まれたデータのDataFrame
         """
-        handler = SQLiteHandler(db_path)
-
-        # 列名をクォートで囲む(特殊文字や予約語に対応)
-        quoted_columns = [f'"{col}"' for col in columns]
-        columns_str = ", ".join(quoted_columns)
-
-        try:
-            query = f"SELECT {columns_str} FROM {table_name}"
-            results = handler.fetch_all(query)
-
-            if not results:
-                print(f"テーブル '{table_name}' にデータがありません")
-                return pd.DataFrame()
-
-            # DataFrameを作成
-            df = pd.DataFrame(results, columns=columns)
-            print(f"✓ データを読み込みました (形状: {df.shape})")
-            return df
-
-        except Exception as e:
-            print(f"❌ データ読み込みエラー: {e}")
-            return pd.DataFrame()
+        loader = SQLiteDataLoader()
+        df = loader.load_columns(db_path, table_name, columns)
+        print(f"\u2713 データを読み込みました (形状: {df.shape})")
+        return df
 
     def detect_data_types(self, df: pd.DataFrame) -> dict[str, str]:
         """
@@ -117,9 +94,7 @@ class FeatureTransformer:
 
         # 数値変換の適用
         if "numeric_transformations" in transformations_config:
-            numeric_columns = [
-                col for col, dtype in data_types.items() if dtype in ["integer", "float"]
-            ]
+            numeric_columns = [col for col, dtype in data_types.items() if dtype in ["integer", "float"]]
             if numeric_columns:
                 df_processed = self.apply_numeric_transformations(
                     df_processed, numeric_columns, transformations_config["numeric_transformations"]
@@ -127,9 +102,7 @@ class FeatureTransformer:
 
         # カテゴリカル変換の適用
         if "categorical_transformations" in transformations_config:
-            categorical_columns = [
-                col for col, dtype in data_types.items() if dtype == "categorical"
-            ]
+            categorical_columns = [col for col, dtype in data_types.items() if dtype == "categorical"]
             if categorical_columns:
                 df_processed = self.apply_categorical_transformations(
                     df_processed, categorical_columns, transformations_config["categorical_transformations"]
@@ -137,9 +110,7 @@ class FeatureTransformer:
 
         # 欠損値処理の適用
         if "missing_value_strategy" in transformations_config:
-            df_processed = self.handle_missing_values(
-                df_processed, transformations_config["missing_value_strategy"]
-            )
+            df_processed = self.handle_missing_values(df_processed, transformations_config["missing_value_strategy"])
 
         return df_processed
 
@@ -163,16 +134,12 @@ class FeatureTransformer:
             for transform in transformations:
                 if transform == "standardize":
                     scaler = StandardScaler()
-                    df_transformed[f"{column}_standardized"] = scaler.fit_transform(
-                        df_transformed[[column]]
-                    )
+                    df_transformed[f"{column}_standardized"] = scaler.fit_transform(df_transformed[[column]])
                     self.scalers[f"{column}_standardized"] = scaler
 
                 elif transform == "normalize":
                     scaler = MinMaxScaler()
-                    df_transformed[f"{column}_normalized"] = scaler.fit_transform(
-                        df_transformed[[column]]
-                    )
+                    df_transformed[f"{column}_normalized"] = scaler.fit_transform(df_transformed[[column]])
                     self.scalers[f"{column}_normalized"] = scaler
 
                 elif transform == "log":
@@ -187,9 +154,7 @@ class FeatureTransformer:
                     if (df_transformed[column] >= 0).all():
                         df_transformed[f"{column}_sqrt"] = np.sqrt(df_transformed[column])
                     else:
-                        print(
-                            f"⚠️  {column}: 負の値が含まれているため平方根変換をスキップ"
-                        )
+                        print(f"⚠️  {column}: 負の値が含まれているため平方根変換をスキップ")
 
         return df_transformed
 
@@ -213,9 +178,7 @@ class FeatureTransformer:
             for transform in transformations:
                 if transform == "label_encoding":
                     le = LabelEncoder()
-                    df_transformed[f"{column}_encoded"] = le.fit_transform(
-                        df_transformed[column].astype(str)
-                    )
+                    df_transformed[f"{column}_encoded"] = le.fit_transform(df_transformed[column].astype(str))
                     self.label_encoders[f"{column}_encoded"] = le
 
                 elif transform == "one_hot_encoding":
