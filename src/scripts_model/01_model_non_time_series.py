@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pandas as pd
 from lightgbm import LGBMRegressor
@@ -10,7 +10,13 @@ from lightgbm import LGBMRegressor
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.ml import FeatureManager, HyperTuner, TargetManager, TreeModelPipeline
+# Use dedicated modules for non time series pipelines
+from src.non_timeseries_pipeline import (
+    FeatureManager,
+    HyperTuner,
+    TargetManager,
+    TreeModelPipeline,
+)
 
 
 def main() -> None:
@@ -24,13 +30,15 @@ def main() -> None:
 
     feature_manager = FeatureManager()
     target_manager = TargetManager()
-    X = feature_manager.transform(df.drop(columns=[args.target_column]))
+    x = feature_manager.transform(df.drop(columns=[args.target_column]))
     y = target_manager.transform(df[args.target_column])
 
-    estimator_factory = lambda: LGBMRegressor()
+    def estimator_factory() -> LGBMRegressor:
+        return LGBMRegressor()
+
     param_grid = {"n_estimators": [100, 200], "max_depth": [5, 10]}
     tuner = HyperTuner(estimator_factory, param_grid, outer_splits=args.outer_splits, inner_splits=3)
-    tune_result = tuner.tune(X, y)
+    tune_result = tuner.tune(x, y)
 
     best_params = tune_result["best_params"]
     model = LGBMRegressor(**best_params)
