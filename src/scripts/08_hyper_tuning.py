@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pandas as pd
 from lightgbm import LGBMRegressor
@@ -24,10 +24,12 @@ def main() -> None:
 
     feature_manager = FeatureManager()
     target_manager = TargetManager()
-    X = feature_manager.transform(df.drop(columns=[args.target_column]))
+    x = feature_manager.transform(df.drop(columns=[args.target_column]))
     y = target_manager.transform(df[args.target_column])
 
-    estimator_factory = lambda: LGBMRegressor()
+    def estimator_factory():
+        return LGBMRegressor()
+
     param_grid = {"n_estimators": [100, 200], "max_depth": [5, 10]}
 
     tuner = HyperTuner(
@@ -36,7 +38,7 @@ def main() -> None:
         outer_splits=args.outer_splits,
         inner_splits=3,
     )
-    result = tuner.tune(X, y)
+    result = tuner.tune(x, y)
     print(f"最適パラメータ: {result['best_params']}")
     print(f"平均スコア: {result['avg_score']:.4f}")
 
