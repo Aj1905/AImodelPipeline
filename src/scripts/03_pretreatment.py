@@ -8,7 +8,7 @@ import pandas as pd
 import seaborn as sns
 
 # SQLite DBファイルのパスをここに設定してください
-DB_PATH = "/Users/aj/Documents/forecasting_poc/data/database.sqlite"
+DB_PATH = "/Users/aj/Documents/AImodelPipeline/data/database.sqlite"
 
 
 # 必要な関数を直接定義

@@ -52,19 +52,17 @@ ARTIFACT_DIR.mkdir(exist_ok=True)
 # 既存の列を特徴量として利用するリスト
 FEATURE_COLUMNS = [
     "date_and_time",
-    "date_day",
-    "date_month",
-    "date_year",
+
     "dow_flag",
     "prev_year_same_weekday_sales_daily_sum",
     "time_flag",
     "Yokohama_Temperature",
-    "prev_year_same_weekday_sales",
     "is_weekend",
-    "sales_trailing_ma_1",
     "sales_trailing_ma_3",
-    "sales_trailing_ma_10",
+    "sales_trailing_ma_14",
+    "holiday",
 ]
+
 
 # feature_engineering関数で作成する特徴量の名前
 ENGINEERED_FEATURES = [
