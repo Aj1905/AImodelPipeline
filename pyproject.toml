@@ -56,6 +56,7 @@ ignore = [
     "E203",  # whitespace before ':'
     "E402",  # module level import not at top of file
     "N999",  # invalid module name
+    "C901",  # function is too complex
 ]
 
 [tool.ruff.lint.isort]

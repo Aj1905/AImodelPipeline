@@ -400,13 +400,13 @@ def _process_data(db_path, table_name, column_names, numeric_transforms, categor
     """データの読み込みと変換を行う"""
     # データ読み込み
     print(f"\n📊 データ読み込み中: {table_name}")
-    
+
     # Polarsを使用してデータを読み込み
     import sqlite3
     conn = sqlite3.connect(db_path)
     df = pl.read_database(f"SELECT * FROM {table_name}", conn)
     conn.close()
-    
+
     print(f"読み込み完了: {df.shape[0]}行 x {df.shape[1]}列")
 
     # 特徴量エンジニアリングの実行
@@ -432,13 +432,13 @@ def _save_and_display_results(db_path, table_name, output_table, df, transformer
     """結果の保存と表示を行う"""
     # データベースに保存
     print(f"\n💾 変換結果を保存中: {output_table}")
-    
+
     # Polarsを使用してSQLiteに保存
     import sqlite3
     conn = sqlite3.connect(db_path)
     df.write_database(output_table, conn, if_exists="replace")
     conn.close()
-    
+
     print("✅ 保存完了")
 
     # 結果表示
