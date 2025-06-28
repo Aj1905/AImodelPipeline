@@ -28,7 +28,6 @@ from .visualization import (
 
 DB_PATH = "/Users/aj/Documents/forecasting_poc/data/database.sqlite"
 
-
 def _get_available_tables(conn: sqlite3.Connection) -> list[str]:
     cursor = conn.cursor()
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -140,7 +139,6 @@ def run_pretreatment() -> None:
         conn.rollback()
     finally:
         conn.close()
-        print("\nデータベース接続を閉じました")
         print("プログラムを終了します")
 
 
