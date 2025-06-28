@@ -176,7 +176,7 @@ def interactive_setup(db_path: Path) -> tuple[str, str, list[str]]:
     # ターゲット列と特徴量列を一度に選択
     print("\n🎯 ターゲット列と特徴量列を選択してください:")
     print("例: ターゲット列を7番、特徴量列を1,2,3,4,5,6番にする場合 → 7:1,2,3,4,5,6")
-    
+
     columns_info = get_table_columns(db_path, table_name)
     column_names = [col[0] for col in columns_info]
     column_types = [col[1] for col in columns_info]
@@ -193,29 +193,29 @@ def interactive_setup(db_path: Path) -> tuple[str, str, list[str]]:
                 continue
 
             target_part, feature_part = choice.split(':', 1)
-            
+
             # ターゲット列の処理
             target_index = int(target_part.strip()) - 1
             if not (0 <= target_index < len(column_names)):
                 print("有効なターゲット列の番号を入力してください")
                 continue
-            
+
             target_column = column_names[target_index]
-            
+
             # 特徴量列の処理
             if not feature_part.strip():
                 print("少なくとも1つの特徴量列を選択してください")
                 continue
-                
+
             feature_indices = [int(x.strip()) - 1 for x in feature_part.split(',')]
             valid_feature_indices = [i for i in feature_indices if 0 <= i < len(column_names)]
-            
+
             if not valid_feature_indices:
                 print("有効な特徴量列の番号を入力してください")
                 continue
-            
+
             feature_columns = [column_names[i] for i in valid_feature_indices]
-            
+
             # ターゲット列を特徴量から除外
             if target_column in feature_columns:
                 feature_columns.remove(target_column)
@@ -223,7 +223,7 @@ def interactive_setup(db_path: Path) -> tuple[str, str, list[str]]:
 
             print(f"✅ 選択されたターゲット列: {target_column}")
             print(f"✅ 選択された特徴量列: {feature_columns}")
-            
+
             return table_name, target_column, feature_columns
 
         except ValueError:
