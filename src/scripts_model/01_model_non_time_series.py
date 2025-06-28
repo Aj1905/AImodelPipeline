@@ -52,7 +52,6 @@ ARTIFACT_DIR.mkdir(exist_ok=True)
 # 既存の列を特徴量として利用するリスト
 FEATURE_COLUMNS = [
     "date_and_time",
-
     "dow_flag",
     "prev_year_same_weekday_sales_daily_sum",
     "time_flag",
