@@ -5,6 +5,15 @@
 このスクリプトは、SQLiteデータベースのテーブルに対して
 特徴量変換を適用するためのツールです。
 
+実行コマンド例:
+    python src/scripts/06_feature_transform.py --table TABLE_NAME --columns COL1,COL2 --numeric-transforms standardize,normalize
+    python src/scripts/06_feature_transform.py --table TABLE_NAME --categorical-encodings label,onehot --output-table transformed_table
+    python src/scripts/06_feature_transform.py --table TABLE_NAME --feature-engineering --keep-date-for-split
+    python src/scripts/06_feature_transform.py --help-transforms
+    python src/scripts/06_feature_transform.py --table sales_data --columns sales,temperature --numeric-transforms standardize --output-table sales_transformed
+    python src/scripts/06_feature_transform.py --table customer_data --categorical-encodings label,onehot --output-table customer_encoded
+    python src/scripts/06_feature_transform.py --table weather_data --feature-engineering --keep-date-for-split --output-table weather_features
+
 使用方法:
     python 06_feature_transform.py --table TABLE_NAME --columns COL1,COL2
     python 06_feature_transform.py --help-transforms

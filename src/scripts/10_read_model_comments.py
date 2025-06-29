@@ -4,6 +4,15 @@ MLflowから保存されたモデルのコメントと学習情報を読み取�
 
 このスクリプトは、MLflowのデータベースからモデルの学習情報とカスタムコメントを
 表示します。
+
+実行コマンド例:
+    python src/scripts/10_read_model_comments.py --mlflow-uri sqlite:///mlflow.db
+    python src/scripts/10_read_model_comments.py --run-id 1234567890abcdef
+    python src/scripts/10_read_model_comments.py --experiment-name my_experiment
+    python src/scripts/10_read_model_comments.py --mlflow-uri sqlite:///mlflow.db --experiment-name lightgbm_experiment
+    python src/scripts/10_read_model_comments.py --experiment-name sales_prediction
+    python src/scripts/10_read_model_comments.py --run-id abc123def456 --mlflow-uri sqlite:///mlflow.db
+    python src/scripts/10_read_model_comments.py --experiment-name weather_forecast
 """
 
 import argparse

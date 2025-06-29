@@ -1,3 +1,18 @@
+"""
+Interactive ML Model Training with SQLite and MLflow Integration
+
+実行コマンド例:
+    python src/scripts/07_concise_draftmodel.py
+    python src/scripts/07_concise_draftmodel.py --no-mlflow
+    python src/scripts/07_concise_draftmodel.py --experiment-name "my_experiment"
+    python src/scripts/07_concise_draftmodel.py --table my_table --target-column target --feature-columns col1 col2 col3
+    python src/scripts/07_concise_draftmodel.py --time-series-split --time-column date
+    python src/scripts/07_concise_draftmodel.py --model-save-path my_model.pkl --no-save
+    python src/scripts/07_concise_draftmodel.py --table sales_data --target-column sales --feature-columns temperature humidity --experiment-name sales_prediction
+    python src/scripts/07_concise_draftmodel.py --table weather_data --target-column temperature --time-series-split --time-column date --no-mlflow
+    python src/scripts/07_concise_draftmodel.py --table customer_data --target-column purchase_amount --feature-columns age income location --model-save-path customer_model.pkl
+"""
+
 import argparse
 import sys
 from dataclasses import dataclass

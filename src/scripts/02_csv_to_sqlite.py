@@ -2,6 +2,14 @@
 CSVの生データをそのままSQLiteに保存するスクリプト。
 
 前処理なしでCSVファイルをSQLiteデータベースに変換します。
+
+実行コマンド例:
+    python src/scripts/02_csv_to_sqlite.py --csv-file data.csv --table-name my_table
+    python src/scripts/02_csv_to_sqlite.py --csv-file data.csv --table-name my_table --delimiter ";" --encoding utf-8
+    python src/scripts/02_csv_to_sqlite.py --csv-file data.csv --table-name my_table --no-header --headers col1 col2 col3
+    python src/scripts/02_csv_to_sqlite.py --csv-file data.csv --table-name my_table --db-file custom_database.sqlite
+    python src/scripts/02_csv_to_sqlite.py --csv-file sales_data.csv --table-name sales --delimiter "," --encoding utf-8
+    python src/scripts/02_csv_to_sqlite.py --csv-file weather_data.csv --table-name weather --no-header --headers date temp humidity
 """
 
 import argparse
