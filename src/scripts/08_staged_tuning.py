@@ -4,6 +4,17 @@
 
 このスクリプトは、機械学習モデルの段階的チューニングを実行します。
 
+実行コマンド例:
+    python src/scripts/08_staged_tuning.py --action new --table TABLE_NAME --target TARGET_COLUMN --project PROJECT_NAME
+    python src/scripts/08_staged_tuning.py --action list
+    python src/scripts/08_staged_tuning.py --action details --project PROJECT_NAME
+    python src/scripts/08_staged_tuning.py --action compare
+    python src/scripts/08_staged_tuning.py --action importance --project PROJECT_NAME
+    python src/scripts/08_staged_tuning.py --action new --table my_table --target target_col --db-file data/database.sqlite
+    python src/scripts/08_staged_tuning.py --action new --table sales_data --target sales --project sales_prediction
+    python src/scripts/08_staged_tuning.py --action details --project weather_forecast
+    python src/scripts/08_staged_tuning.py --action importance --project customer_analysis
+
 使用方法:
     python 06_staged_tuning.py --action new --table TABLE_NAME --target TARGET_COLUMN
         --project PROJECT_NAME

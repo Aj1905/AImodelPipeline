@@ -4,6 +4,14 @@
 
 このスクリプトは、SQLiteデータベースの複数のテーブルを結合するためのツールです。
 
+実行コマンド例:
+    python src/scripts/05_merge_table.py --tables TABLE1,TABLE2,TABLE3 --output-table merged_table
+    python src/scripts/05_merge_table.py --auto-merge --merge-strategy vertical
+    python src/scripts/05_merge_table.py --db-file data/database.sqlite --tables table1,table2 --non-interactive
+    python src/scripts/05_merge_table.py --help
+    python src/scripts/05_merge_table.py --tables sales_2023,sales_2024 --output-table sales_combined
+    python src/scripts/05_merge_table.py --db-file data/database.sqlite --tables weather,temperature --output-table weather_data --auto-merge
+
 使用方法:
     python 05_merge_table.py --tables TABLE1,TABLE2,TABLE3
     python 05_merge_table.py --auto-merge

@@ -10,26 +10,40 @@ python src/scripts_model/01_model_non_time_series.py \
     --use-mlflow \
     --experiment-name sales_prediction
 
+python src/scripts_model/01_model_non_time_series.py \
+    --db-path data/database.sqlite \
+    --table-name customer_data \
+    --target-column purchase_amount \
+    --no-tuning \
+    --experiment-name customer_analysis
+
+python src/scripts_model/01_model_non_time_series.py \
+    --db-path data/database.sqlite \
+    --table-name weather_data \
+    --target-column temperature \
+    --outerCV-splits 3 \
+    --no-mlflow
+
 オプション:
     --db-path: SQLiteデータベースファイルのパス
     --table-name: 読み込むテーブル名
     --target-column: ターゲット列名
-    --outerCV-splits: 外側のCV分割数（デフォルト: 5）
+    --outerCV-splits: 外側のCV分割数(デフォルト: 5)
     --use-mlflow: MLflowを使用する
     --no-mlflow: MLflowを使用しない
     --no-tuning: ハイパーパラメータチューニングをスキップする
-    --experiment-name: MLflowの実験名（デフォルト: non_timeseries_pipeline）
+    --experiment-name: MLflowの実験名(デフォルト: non_timeseries_pipeline)
     --run-name: MLflow実行名
-    --mlflow-tracking-uri: MLflowトラッキングURI（デフォルト: sqlite:///mlflow.db）
+    --mlflow-tracking-uri: MLflowトラッキングURI(デフォルト: sqlite:///mlflow.db)
 """
 
 import argparse
-import sys
-from pathlib import Path
-from datetime import datetime
 import json
-import joblib
+import sys
+from datetime import datetime
+from pathlib import Path
 
+import joblib
 import mlflow
 import pandas as pd
 import polars as pl
@@ -38,13 +52,12 @@ from sklearn.model_selection import train_test_split
 
 # 相対インポートを絶対インポートに変更
 sys.path.append(str(Path(__file__).parent.parent.parent))
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
 from src.data.handlers.sqlite_handler import SQLiteHandler
 from src.non_timeseries_pipeline.feature_manager import FeatureManager
 from src.non_timeseries_pipeline.hyper_tuning import OptunaHyperTuner
-from src.non_timeseries_pipeline.pipeline import TreeModelPipeline
 from src.non_timeseries_pipeline.target_manager import TargetManager
-
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 ARTIFACT_DIR = Path("artifacts")
 ARTIFACT_DIR.mkdir(exist_ok=True)
@@ -197,24 +210,24 @@ def main():
     # 指定された特徴量のみを選択
     available_features = [col for col in FEATURE_COLUMNS if col in df.columns]
     missing_features = [col for col in FEATURE_COLUMNS if col not in df.columns]
-    
+
     if missing_features:
         print(f"⚠️ 指定された特徴量が見つかりません: {missing_features}")
-    
+
     print(f"📊 使用する特徴量: {available_features}")
-    
+
     # 指定された特徴量とターゲット列のみを選択
     selected_columns = available_features + [args.target_column]
     df_selected = df[selected_columns].copy()
-    
+
     print("🔧 特徴量エンジニアリング実行中...")
     df_pl = pl.from_pandas(df_selected)
     engineered_features = feature_engineering(df_pl)
     engineered_features_pd = engineered_features.to_pandas()
-    
+
     X_raw = pd.concat([df_selected[available_features], engineered_features_pd], axis=1)
     y_raw = df_selected[args.target_column]
-    
+
     print(f"✅ 特徴量エンジニアリング完了: {len(X_raw.columns)} 列")
     print(f"   元の特徴量: {len(available_features)} 列")
     print(f"   エンジニアリング特徴量: {len(ENGINEERED_FEATURES)} 列")
@@ -314,7 +327,7 @@ def main():
     fi = getattr(model, "feature_importances_", None)
     if fi is not None:
         names = X_dev.columns.tolist()
-        pairs = sorted(zip(names, fi), key=lambda x: x[1], reverse=True)[:10]
+        pairs = sorted(zip(names, fi, strict=False), key=lambda x: x[1], reverse=True)[:10]
         print("\n🎯 特徴量重要度 (上位10件):")
         for i, (n, v) in enumerate(pairs, 1):
             print(f"   {i:2d}. {n:<30} {v:.4f}")

@@ -1,17 +1,13 @@
 {
   "feature_columns": [
-    "date_day",
-    "date_month",
-    "date_year",
     "dow_flag",
     "prev_year_same_weekday_sales_daily_sum",
     "time_flag",
     "Yokohama_Temperature",
-    "prev_year_same_weekday_sales",
     "is_weekend",
-    "sales_trailing_ma_1",
     "sales_trailing_ma_3",
-    "sales_trailing_ma_10",
+    "sales_trailing_ma_14",
+    "holiday",
     "date_and_time_year",
     "date_and_time_month",
     "date_and_time_day",
@@ -19,18 +15,14 @@
   ],
   "original_features": [
     "date_and_time",
-    "date_day",
-    "date_month",
-    "date_year",
     "dow_flag",
     "prev_year_same_weekday_sales_daily_sum",
     "time_flag",
     "Yokohama_Temperature",
-    "prev_year_same_weekday_sales",
     "is_weekend",
-    "sales_trailing_ma_1",
     "sales_trailing_ma_3",
-    "sales_trailing_ma_10"
+    "sales_trailing_ma_14",
+    "holiday"
   ],
   "engineered_features": [],
   "categorical_columns": [],
@@ -38,14 +30,14 @@
     "date_and_time"
   ],
   "best_params": {
-    "n_estimators": 90,
+    "n_estimators": 118,
     "max_depth": 4,
-    "learning_rate": 0.05888710969888765,
-    "min_child_samples": 6,
-    "subsample": 0.8800181108725305,
-    "colsample_bytree": 0.7385716210256241,
-    "reg_alpha": 0.09592554157993753,
-    "reg_lambda": 0.94632774594814
+    "learning_rate": 0.07320097980974366,
+    "min_child_samples": 13,
+    "subsample": 0.9947326814475712,
+    "colsample_bytree": 0.753216615520987,
+    "reg_alpha": 0.3801102933721935,
+    "reg_lambda": 0.5336020360131197
   },
-  "run_datetime": "2025-06-27T17:52:43.116096"
+  "run_datetime": "2025-06-29T00:02:16.173704"
 }

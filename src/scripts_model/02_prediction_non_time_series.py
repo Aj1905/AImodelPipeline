@@ -7,6 +7,16 @@ python src/scripts_model/02_prediction_non_time_series.py \
     --predict-table new_data \
     --output-table predictions
 
+python src/scripts_model/02_prediction_non_time_series.py \
+    --db-path data/database.sqlite \
+    --predict-table sales_test \
+    --output-table sales_predictions
+
+python src/scripts_model/02_prediction_non_time_series.py \
+    --db-path data/database.sqlite \
+    --predict-table customer_new \
+    --output-table customer_predictions
+
 オプション:
     --db-path: SQLiteデータベースファイルのパス
     --predict-table: 入力テーブル名（目的変数列は不要）
@@ -14,11 +24,11 @@ python src/scripts_model/02_prediction_non_time_series.py \
 """
 
 import argparse
-import sqlite3
-import joblib
 import json
+import sqlite3
 from pathlib import Path
 
+import joblib
 import pandas as pd
 import polars as pl
 
@@ -48,7 +58,7 @@ FEATURE_COLUMNS = [
 # feature_engineering関数で作成する特徴量の名前（01_model_non_time_series.pyと同じ）
 ENGINEERED_FEATURES = [
     "is_lunch",
-    "weekday", 
+    "weekday",
     "time_category",
     "season"
 ]
@@ -73,6 +83,12 @@ def feature_engineering(data: pl.DataFrame) -> pl.DataFrame:
             .then(2)
             .otherwise(3)
             .alias("time_category"),
+        ]
+    )
+
+    # date_month列が存在する場合のみseason特徴量を作成
+    if "date_month" in df.columns:
+        engineered = engineered.with_columns([
             pl.when(pl.col("date_month").is_in([12, 1, 2]))
             .then(0)
             .when(pl.col("date_month").is_in([3, 4, 5]))
@@ -81,10 +97,23 @@ def feature_engineering(data: pl.DataFrame) -> pl.DataFrame:
             .then(2)
             .otherwise(3)
             .alias("season"),
-        ]
-    )
+        ])
+    else:
+        # date_month列が存在しない場合は季節を0で初期化
+        engineered = engineered.with_columns(pl.lit(0).alias("season"))
 
-    return engineered.select(ENGINEERED_FEATURES)
+    # 欠損値処理
+    result = engineered.select(ENGINEERED_FEATURES)
+    
+    # Polarsで欠損値を処理
+    for col in ENGINEERED_FEATURES:
+        if col in result.columns:
+            # 数値列の場合は中央値で補完
+            result = result.with_columns(
+                pl.col(col).fill_null(pl.col(col).median()).alias(col)
+            )
+
+    return result
 
 def main():
     parser = argparse.ArgumentParser(description="保存済みモデルを読み込み、本番データで予測を実行します")
@@ -97,7 +126,7 @@ def main():
     fm       = joblib.load(ARTIFACT_DIR/"feature_manager.pkl")
     tm       = joblib.load(ARTIFACT_DIR/"target_manager.pkl")
     model    = joblib.load(ARTIFACT_DIR/"model.pkl")
-    metadata = json.load(open(ARTIFACT_DIR/"metadata.json", "r", encoding="utf-8"))
+    metadata = json.load(open(ARTIFACT_DIR/"metadata.json", encoding="utf-8"))
 
     print("📊 メタデータ情報:")
     print(f"   元の特徴量: {metadata.get('original_features', [])}")
@@ -112,24 +141,40 @@ def main():
     # 指定された特徴量のみを選択
     available_features = [col for col in FEATURE_COLUMNS if col in df.columns]
     missing_features = [col for col in FEATURE_COLUMNS if col not in df.columns]
-    
+
     if missing_features:
         print(f"⚠️ 指定された特徴量が見つかりません: {missing_features}")
-    
+
     print(f"📊 使用する特徴量: {available_features}")
-    
+
     # 指定された特徴量のみを選択
     df_selected = df[available_features].copy()
-    
+
+    # 欠損値処理
+    print("🔧 欠損値処理実行中...")
+    for col in df_selected.columns:
+        if df_selected[col].dtype in ['int64', 'float64']:
+            # 数値列の場合
+            if df_selected[col].isnull().sum() > 0:
+                median_val = df_selected[col].median()
+                df_selected[col] = df_selected[col].fillna(median_val)
+                print(f"  {col}: 中央値 ({median_val:.2f}) で補完")
+        else:
+            # カテゴリ列の場合
+            if df_selected[col].isnull().sum() > 0:
+                mode_val = df_selected[col].mode().iloc[0] if not df_selected[col].mode().empty else 'Unknown'
+                df_selected[col] = df_selected[col].fillna(mode_val)
+                print(f"  {col}: 最頻値 ({mode_val}) で補完")
+
     # 特徴量エンジニアリング
     print("🔧 特徴量エンジニアリング実行中...")
     df_pl = pl.from_pandas(df_selected)
     engineered_features = feature_engineering(df_pl)
     engineered_features_pd = engineered_features.to_pandas()
-    
+
     # 元の特徴量とエンジニアリングされた特徴量を結合
     X_input = pd.concat([df_selected[available_features], engineered_features_pd], axis=1)
-    
+
     print(f"✅ 特徴量エンジニアリング完了: {len(X_input.columns)} 列")
     print(f"   元の特徴量: {len(available_features)} 列")
     print(f"   エンジニアリング特徴量: {len(ENGINEERED_FEATURES)} 列")
@@ -137,7 +182,7 @@ def main():
     # 前処理 → 予測
     X_processed = fm.transform(X_input)
     y_pred = model.predict(X_processed)
-    
+
     # 予測結果を元のデータフレームに追加
     target_col = metadata.get("target_column", "sales")
     df[target_col] = y_pred
@@ -148,7 +193,7 @@ def main():
     conn.close()
 
     print(f"✅ 予測結果をテーブル '{args.output_table}' に保存しました")
-    print(f"📊 予測値の統計:")
+    print("📊 予測値の統計:")
     print(f"   平均: {y_pred.mean():.2f}")
     print(f"   標準偏差: {y_pred.std():.2f}")
     print(f"   最小値: {y_pred.min():.2f}")

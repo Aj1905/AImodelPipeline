@@ -1,3 +1,12 @@
+"""
+前処理スクリプト
+
+実行コマンド例:
+    python src/scripts/03_pretreatment.py
+    python src/scripts/03_pretreatment.py --config-path config.yaml
+    python src/scripts/03_pretreatment.py --db-path data/database.sqlite --table my_table
+"""
+
 import sys
 from importlib import import_module
 from pathlib import Path

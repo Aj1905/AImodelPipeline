@@ -1,3 +1,15 @@
+"""
+保存されたモデルを使用した予測スクリプト
+
+実行コマンド例:
+    python src/scripts/09_predict_with_saved_model.py --model-path final_pipeline_model.pkl --db-path data/database.sqlite --table my_table
+    python src/scripts/09_predict_with_saved_model.py --model-path trained_model/lightgbm_model.pkl --table my_table --output-path my_predictions.csv
+    python src/scripts/09_predict_with_saved_model.py --model-path final_pipeline_model.pkl --config-path model_config.json
+    python src/scripts/09_predict_with_saved_model.py --model-path sales_model.pkl --db-path data/database.sqlite --table new_sales_data --output-path sales_predictions.csv
+    python src/scripts/09_predict_with_saved_model.py --model-path weather_model.pkl --table weather_test --output-path weather_forecast.csv
+    python src/scripts/09_predict_with_saved_model.py --model-path customer_model.pkl --db-path data/database.sqlite --table customer_data --output-path customer_predictions.csv
+"""
+
 import argparse
 import json
 import sys

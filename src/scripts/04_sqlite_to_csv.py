@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """
 SQLiteデータベースの指定したテーブル(または全テーブル)をCSVファイルとしてエクスポートするスクリプト
+
+実行コマンド例:
+    python src/scripts/04_sqlite_to_csv.py --db-file data/database.sqlite --tables table1,table2
+    python src/scripts/04_sqlite_to_csv.py --db-file data/database.sqlite --output-dir /path/to/output
+    python src/scripts/04_sqlite_to_csv.py --db-file data/database.sqlite --non-interactive
+    python src/scripts/04_sqlite_to_csv.py --tables table1,table2,table3 --output-dir export_data
+    python src/scripts/04_sqlite_to_csv.py --db-file data/database.sqlite --tables sales,weather --output-dir exports
+    python src/scripts/04_sqlite_to_csv.py --db-file data/database.sqlite --non-interactive --output-dir backup_data
 """
 
 import argparse
